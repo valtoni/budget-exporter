@@ -1,23 +1,20 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "Budget Exporter",
   "description": "Detect bank pages and export to CSV.",
   "version": "0.1.0",
-  "action": {
+  "browser_action": {
     "default_title": "Budget Exporter",
     "default_popup": "popup.html"
   },
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "scripts": ["background.js"],
+    "persistent": false
   },
   "permissions": [
     "storage",
     "tabs",
-    "scripting",
-    "downloads"
-  ],
-  "host_permissions": [
+    "downloads",
     "*://*.desjardins.com/*",
     "*://*.koho.ca/*",
     "*://*.banqueinterac.com/*",
