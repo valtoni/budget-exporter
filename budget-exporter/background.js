@@ -51,48 +51,143 @@ function isSiteSupported(url) {
 function getBankName(url) {
     try {
         const hostname = new URL(url).hostname.replace('www.', '');
-        return hostname.split('.')[0].toUpperCase();
+        // Pega a primeira parte do domínio (ex: desjardins.com -> desjardins)
+        return hostname.split('.')[0];
     } catch (e) {
-        return 'BANK';
+        return null;
     }
 }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === "EXPORT_ROWS" && Array.isArray(msg.rows)) {
-        const siteUrl = sender.url || sender.tab?.url || '';
-        
-        // Verifica se o site é suportado
-        if (!isSiteSupported(siteUrl)) {
-            const supportedSites = getSupportedSites();
-            console.warn('Site não suportado:', siteUrl);
-            sendResponse({ 
-                ok: false, 
-                error: `Este site não é suportado pela extensão.\n\nSites suportados:\n${supportedSites.join('\n')}`
-            });
-            return false;
+// Carrega dinamicamente o conversor CSV do banco (estratégias + import dinâmico)
+async function loadBankConverter(bankName) {
+    if (!bankName) {
+        throw new Error('Banco não informado.');
+    }
+
+    const normalize = (s) => String(s).toLowerCase().replace(/^www\./, '').replace(/[^a-z0-9]/g, '');
+    const name = normalize(bankName);
+
+    // Estratégias locais (por enquanto usam um conversor genérico padrão)
+    // Caso você crie um arquivo específico por banco que exporte "toCsv",
+    // o bloco de import dinâmico abaixo tentará carregá-lo primeiro.
+    const aliases = {
+        // Canadá
+        desjardins: 'desjardins', dj: 'desjardins', desj: 'desjardins', desjardin: 'desjardins',
+        koho: 'koho',
+        bmo: 'bmo', bankofmontreal: 'bmo',
+        rbc: 'rbc', royalbank: 'rbc', royalbankofcanada: 'rbc',
+        td: 'td', tdbank: 'td', torontodominion: 'td',
+        scotia: 'scotiabank', scotiabank: 'scotiabank',
+        tangerine: 'tangerine',
+        cibc: 'cibc',
+        nbc: 'nbc', nationalbank: 'nbc', bnc: 'nbc',
+        hsbc: 'hsbc',
+        simplii: 'simplii',
+        eqbank: 'eqbank', eq: 'eqbank',
+    };
+
+    const canonical = aliases[name] || name;
+
+    // 1) Tenta carregar um módulo específico do banco se existir
+    // Suporte a dois padrões de arquivo: tocsv-<bank>.js e tocsv<Bank>.js
+    const camel = canonical.charAt(0).toUpperCase() + canonical.slice(1);
+    const candidatePaths = [
+        `./tocsv-${canonical}.js`,       // ex.: tocsv-desjardins.js
+        `./tocsv${camel}.js`,           // ex.: tocsvDesjardins.js
+        `./converters/tocsv-${canonical}.js`,
+        `./converters/tocsv${camel}.js`,
+    ];
+
+    for (const p of candidatePaths) {
+        try {
+            const mod = await import(p);
+            if (typeof mod?.toCsv === 'function') {
+                return mod.toCsv;
+            }
+            if (typeof mod?.default === 'function') {
+                return mod.default;
+            }
+            console.warn(`Módulo encontrado mas sem export toCsv: ${p}`);
+        } catch (e) {
+            // segue para próximo candidato
         }
-        
-        const bankName = getBankName(siteUrl);
-        const csv = toCsv(bankName, msg.rows);
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        
-        chrome.downloads.download({
-            url,
-            filename: `${bankName}-EXPORT-${new Date().toISOString().slice(0,10)}.csv`,
-            saveAs: true
-        })
-        .then((downloadId) => {
-            console.log('Download iniciado com ID:', downloadId);
-            sendResponse({ ok: true, downloadId });
-        })
-        .catch((error) => {
-            console.error('Erro ao iniciar download:', error);
-            sendResponse({ ok: false, error: error.message });
-        })
-        .finally(() => {
-            URL.revokeObjectURL(url);
-        });
+    }
+
+    // 2) Estratégias locais (fallback)
+    const strategies = {
+        desjardins: (rows) => toCsv('desjardins', rows),
+        koho: (rows) => toCsv('koho', rows),
+        bmo: (rows) => toCsv('bmo', rows),
+        rbc: (rows) => toCsv('rbc', rows),
+        td: (rows) => toCsv('td', rows),
+        scotiabank: (rows) => toCsv('scotiabank', rows),
+        tangerine: (rows) => toCsv('tangerine', rows),
+        cibc: (rows) => toCsv('cibc', rows),
+        nbc: (rows) => toCsv('nbc', rows),
+        hsbc: (rows) => toCsv('hsbc', rows),
+        simplii: (rows) => toCsv('simplii', rows),
+        eqbank: (rows) => toCsv('eqbank', rows),
+    };
+
+    if (strategies[canonical]) {
+        return strategies[canonical];
+    }
+
+    // 3) Último fallback: conversor genérico
+    console.warn(`Conversor específico para '${bankName}' não encontrado. Usando conversor genérico.`);
+    return (rows) => toCsv('generic', rows);
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    // Responde ao teste básico do popup
+    if (msg.type === 'PING') {
+        sendResponse({ ok: true, pong: true, from: 'background', receivedFrom: msg.from || 'unknown' });
+        return; // resposta síncrona, não mantém o canal aberto
+    }
+
+    if (msg.type === "EXPORT_ROWS" && Array.isArray(msg.rows)) {
+        (async () => {
+            const siteUrl = sender.url || sender.tab?.url || '';
+            
+            // Verifica se o site é suportado
+            if (!isSiteSupported(siteUrl)) {
+                const supportedSites = getSupportedSites();
+                console.warn('Site não suportado:', siteUrl);
+                sendResponse({ 
+                    ok: false, 
+                    error: `Este site não é suportado pela extensão.\n\nSites suportados:\n${supportedSites.join('\n')}`
+                });
+                return;
+            }
+            
+            const bankName = getBankName(siteUrl);
+            if (!bankName) {
+                sendResponse({ ok: false, error: 'Não foi possível identificar o banco.' });
+                return;
+            }
+            
+            try {
+                // Carrega o conversor específico do banco
+                const toCsv = await loadBankConverter(bankName);
+                const csv = toCsv(msg.rows);
+                
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                
+                const downloadId = await chrome.downloads.download({
+                    url,
+                    filename: `${bankName.toUpperCase()}-EXPORT-${new Date().toISOString().slice(0,10)}.csv`,
+                    saveAs: true
+                });
+                
+                URL.revokeObjectURL(url);
+                console.log('Download iniciado com ID:', downloadId);
+                sendResponse({ ok: true, downloadId });
+            } catch (error) {
+                console.error('Erro ao processar exportação:', error);
+                sendResponse({ ok: false, error: error.message });
+            }
+        })();
         
         return true;
     }

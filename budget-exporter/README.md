@@ -16,7 +16,7 @@ How to load the extension (Chrome/Edge)
 4. The extension "Budget Exporter" should appear. Click the toolbar icon to open the popup.
 
 Notes
-- The content script is set to run on <all_urls>. Adjust matches in manifest.json to restrict scope.
+- The content script is configured to run only on selected bank domains (see manifest.json → matches/host_permissions).
 - No icons are provided to keep the skeleton lightweight. You can add PNG icons later and include them in manifest.json → icons.
 - The background script listens for a simple PING message. The popup sends a PING and shows the response.
 - Options page demonstrates saving a simple value via chrome.storage.sync.
