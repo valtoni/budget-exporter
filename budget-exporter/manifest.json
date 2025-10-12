@@ -1,0 +1,59 @@
+{
+  "manifest_version": 3,
+  "name": "Budget Exporter",
+  "description": "Detect bank pages and export to CSV.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "Budget Exporter",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.desjardins.com/*",
+    "*://*.koho.ca/*",
+    "*://*.banqueinterac.com/*",
+    "*://*.rbcroyalbank.com/*",
+    "*://*.td.com/*",
+    "*://*.scotiabank.com/*",
+    "*://*.bmo.com/*",
+    "*://*.cibc.com/*",
+    "*://*.nbc.ca/*",
+    "*://*.hsbc.ca/*",
+    "*://*.tangerine.ca/*",
+    "*://*.simplii.com/*",
+    "*://*.eqbank.ca/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.desjardins.com/*",
+        "*://*.koho.ca/*",
+        "*://*.banqueinterac.com/*",
+        "*://*.rbcroyalbank.com/*",
+        "*://*.td.com/*",
+        "*://*.scotiabank.com/*",
+        "*://*.bmo.com/*",
+        "*://*.cibc.com/*",
+        "*://*.nbc.ca/*",
+        "*://*.hsbc.ca/*",
+        "*://*.tangerine.ca/*",
+        "*://*.simplii.com/*",
+        "*://*.eqbank.ca/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}

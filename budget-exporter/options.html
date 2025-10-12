@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Budget Exporter – Options</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 16px; max-width: 720px; }
+      label { display: block; margin: 12px 0 6px; }
+      input[type="text"] { width: 100%; padding: 6px; }
+    </style>
+  </head>
+  <body>
+    <h2>Budget Exporter – Options</h2>
+    <p>Configure extension settings here. This is a placeholder page.</p>
+
+    <label for="sample">Sample setting</label>
+    <input id="sample" type="text" placeholder="Value" />
+
+    <script>
+      // Example of storing a simple setting using chrome.storage
+      const input = document.getElementById('sample');
+      chrome.storage.sync.get({ sample: '' }, (data) => { input.value = data.sample; });
+      input.addEventListener('change', () => {
+        chrome.storage.sync.set({ sample: input.value });
+      });
+    </script>
+  </body>
+</html>
