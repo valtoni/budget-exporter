@@ -3,11 +3,11 @@
   "name": "Budget Exporter",
   "description": "Detect bank pages and export to CSV.",
   "version": "0.1.0",
-  "page_action": {
+  "browser_action": {
     "default_title": "Exportar para CSV"
   },
   "background": {
-    "scripts": ["background.js"],
+    "scripts": ["bank-utils.js", "background.js"],
     "persistent": false
   },
   "permissions": [
@@ -28,6 +28,9 @@
     "*://*.simplii.com/*",
     "*://*.eqbank.ca/*"
   ],
+  "web_accessible_resources": [
+    "bank-*.js"
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -45,7 +48,7 @@
         "*://*.simplii.com/*",
         "*://*.eqbank.ca/*"
       ],
-      "js": ["content.js"],
+      "js": ["bank-utils.js", "content.js"],
       "run_at": "document_idle"
     }
   ]
