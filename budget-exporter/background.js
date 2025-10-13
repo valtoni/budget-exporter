@@ -23,10 +23,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     return;
                 }
 
-                // Converte para CSV usando a função do banco
-                const csv = bankModule.toCsv(msg.rows);
+                // Converte para CSV usando a função do banco (pode ser async)
+                const csv = await bankModule.toCsv(msg.rows);
 
-                console.log('CSV gerado com sucesso:', csv.substring(0, 100) + '...');
+                console.log('CSV gerado com sucesso:', typeof csv === 'string' ? csv.substring(0, 100) + '...' : 'CSV gerado');
 
                 // Cria o blob e inicia o download
                 const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

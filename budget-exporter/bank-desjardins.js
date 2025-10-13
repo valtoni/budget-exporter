@@ -77,15 +77,59 @@ function extractDescription(td) {
     return td.innerText.trim();
 }
 
+// Função auxiliar síncrona para aplicar regras pré-carregadas
+function applyRulesSync(payee, rules) {
+    for (const rule of rules) {
+        if (!rule.enabled) continue;
+
+        let matched = false;
+
+        if (rule.isRegex) {
+            try {
+                const regex = new RegExp(rule.pattern, 'i');
+                matched = regex.test(payee);
+            } catch (e) {
+                console.warn('Regex inválida:', rule.pattern, e);
+            }
+        } else {
+            matched = payee.toLowerCase().includes(rule.pattern.toLowerCase());
+        }
+
+        if (matched) {
+            return {
+                payee: rule.replacement || payee,
+                category: rule.category || '',
+                matched: true
+            };
+        }
+    }
+
+    return {
+        payee: payee,
+        category: '',
+        matched: false
+    };
+}
+
 // Função de conversão para CSV no formato YNAB
 // Aplica regras de matching automaticamente
 export async function toCsv(rows = []) {
     const header = ["Date", "Payee", "Category", "Memo", "Outflow", "Inflow"];
 
-    // Carrega StorageManager se disponível
+    // Pré-carrega regras UMA VEZ (async) antes do loop
     const hasStorage = typeof window !== 'undefined' && window.StorageManager;
+    let rules = [];
 
-    const body = await Promise.all(rows.map(async (r) => {
+    if (hasStorage) {
+        try {
+            rules = await window.StorageManager.getPayeeRules();
+        } catch (e) {
+            console.warn('Erro ao carregar regras:', e);
+        }
+    }
+
+    // Agora o map é SÍNCRONO (sem async/await)
+    const body = rows.map((r) => {
         // Parse da data francesa para ISO
         let date = r.date;
         try {
@@ -98,17 +142,13 @@ export async function toCsv(rows = []) {
         let category = '';
         let memo = '';
 
-        // Aplica regras de matching se StorageManager estiver disponível
-        if (hasStorage) {
-            try {
-                const result = await window.StorageManager.applyRules(payee);
-                if (result.matched) {
-                    payee = result.payee;
-                    category = result.category;
-                    memo = `Original: ${r.payee}`;
-                }
-            } catch (e) {
-                console.warn('Erro ao aplicar regras:', e);
+        // Aplica regras síncronas (já carregadas)
+        if (rules.length > 0) {
+            const result = applyRulesSync(payee, rules);
+            if (result.matched) {
+                payee = result.payee;
+                category = result.category;
+                memo = `Original: ${r.payee}`;
             }
         }
 
@@ -126,7 +166,7 @@ export async function toCsv(rows = []) {
 
         return [date, payee, category, memo, outflow, inflow]
             .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
-    }));
+    });
 
     return [header.join(","), ...body].join("\n");
 }
