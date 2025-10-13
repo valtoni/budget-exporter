@@ -162,6 +162,15 @@ async function loadRules() {
             detailsDiv.appendChild(replacementText);
         }
 
+        if (rule.memoTemplate) {
+            const memoText = document.createElement('div');
+            memoText.style.fontSize = '12px';
+            memoText.style.color = '#888';
+            memoText.style.marginTop = '5px';
+            memoText.textContent = `Memo: ${rule.memoTemplate}`;
+            detailsDiv.appendChild(memoText);
+        }
+
         infoDiv.appendChild(patternDiv);
         infoDiv.appendChild(detailsDiv);
 
