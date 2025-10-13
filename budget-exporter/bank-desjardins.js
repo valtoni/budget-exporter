@@ -83,11 +83,16 @@ function applyRulesSync(payee, rules) {
         if (!rule.enabled) continue;
 
         let matched = false;
+        let capturedGroups = null;
 
         if (rule.isRegex) {
             try {
                 const regex = new RegExp(rule.pattern, 'i');
-                matched = regex.test(payee);
+                const match = payee.match(regex);
+                if (match) {
+                    matched = true;
+                    capturedGroups = match; // Guarda os grupos capturados
+                }
             } catch (e) {
                 console.warn('Regex inválida:', rule.pattern, e);
             }
@@ -96,9 +101,21 @@ function applyRulesSync(payee, rules) {
         }
 
         if (matched) {
+            let memo = '';
+
+            // Se tiver memoTemplate e grupos capturados, substitui \1, \2, etc.
+            if (rule.memoTemplate && capturedGroups) {
+                memo = rule.memoTemplate;
+                // Substitui \1, \2, \3, etc. pelos grupos capturados
+                for (let i = 1; i < capturedGroups.length; i++) {
+                    memo = memo.replace(new RegExp(`\\\\${i}`, 'g'), capturedGroups[i] || '');
+                }
+            }
+
             return {
                 payee: rule.replacement || payee,
                 category: rule.category || '',
+                memo: memo,
                 matched: true
             };
         }
@@ -107,6 +124,7 @@ function applyRulesSync(payee, rules) {
     return {
         payee: payee,
         category: '',
+        memo: '',
         matched: false
     };
 }
@@ -148,7 +166,7 @@ export async function toCsv(rows = []) {
             if (result.matched) {
                 payee = result.payee;
                 category = result.category;
-                memo = `Original: ${r.payee}`;
+                memo = result.memo || `Original: ${r.payee}`;
             }
         }
 

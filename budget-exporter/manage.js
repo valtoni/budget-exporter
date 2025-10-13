@@ -26,6 +26,12 @@ function setupEventListeners() {
         e.preventDefault();
         await addCategory();
     });
+
+    // Toggle campo de memo quando regex é marcado
+    document.getElementById('rule-regex').addEventListener('change', (e) => {
+        const memoField = document.getElementById('memo-field');
+        memoField.style.display = e.target.checked ? 'block' : 'none';
+    });
 }
 
 // Troca de tabs
@@ -193,6 +199,7 @@ async function addRule() {
     const replacement = document.getElementById('rule-replacement').value.trim();
     const category = document.getElementById('rule-category').value;
     const isRegex = document.getElementById('rule-regex').checked;
+    const memoTemplate = document.getElementById('rule-memo').value.trim();
 
     if (!pattern) {
         alert('Padrão de busca é obrigatório!');
@@ -213,7 +220,8 @@ async function addRule() {
         pattern,
         replacement,
         category,
-        isRegex
+        isRegex,
+        memoTemplate: isRegex ? memoTemplate : '' // Só salva se regex estiver marcado
     });
 
     // Limpa form
@@ -221,6 +229,8 @@ async function addRule() {
     document.getElementById('rule-replacement').value = '';
     document.getElementById('rule-category').value = '';
     document.getElementById('rule-regex').checked = false;
+    document.getElementById('rule-memo').value = '';
+    document.getElementById('memo-field').style.display = 'none';
 
     await loadRules();
 }

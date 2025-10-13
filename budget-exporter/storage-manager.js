@@ -83,7 +83,7 @@ const StorageManager = {
 
     /**
      * Adiciona uma nova regra de payee
-     * @param {Object} rule { pattern, replacement, category, isRegex }
+     * @param {Object} rule { pattern, replacement, category, isRegex, memoTemplate }
      */
     async addPayeeRule(rule) {
         const rules = await this.getPayeeRules();
@@ -93,6 +93,7 @@ const StorageManager = {
             replacement: rule.replacement,
             category: rule.category || '',
             isRegex: rule.isRegex || false,
+            memoTemplate: rule.memoTemplate || '',
             enabled: true
         });
         await this.setPayeeRules(rules);
