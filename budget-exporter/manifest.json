@@ -4,7 +4,8 @@
   "description": "Detect bank pages and export to CSV.",
   "version": "0.1.0",
   "browser_action": {
-    "default_title": "Exportar para CSV"
+    "default_title": "Exportar para CSV",
+    "default_icon": "icon.svg"
   },
   "background": {
     "scripts": ["bank-utils.js", "background.js"],
