@@ -1,6 +1,7 @@
 // Gerenciador de storage para regras de Payee e categorias
 // Usado por todos os módulos da extensão
 const storageAPI = (typeof browser !== 'undefined' ? browser.storage : chrome.storage);
+const isFirefox = (typeof browser !== 'undefined');
 
 const StorageManager = {
     // Chaves do storage
@@ -38,11 +39,15 @@ const StorageManager = {
      * Obtém todos os dados do storage
      */
     async getAll() {
-        return new Promise((resolve) => {
-            storageAPI.sync.get(null, (items) => {
-                resolve(items || {});
+        if (isFirefox) {
+            return await storageAPI.sync.get(null) || {};
+        } else {
+            return new Promise((resolve) => {
+                storageAPI.sync.get(null, (items) => {
+                    resolve(items || {});
+                });
             });
-        });
+        }
     },
 
     /**
@@ -50,11 +55,16 @@ const StorageManager = {
      * @returns {Promise<Array>} Array de regras { pattern, replacement, category, isRegex }
      */
     async getPayeeRules() {
-        return new Promise((resolve) => {
-            storageAPI.sync.get(this.KEYS.PAYEE_RULES, (items) => {
-                resolve(items[this.KEYS.PAYEE_RULES] || []);
+        if (isFirefox) {
+            const items = await storageAPI.sync.get(this.KEYS.PAYEE_RULES);
+            return items[this.KEYS.PAYEE_RULES] || [];
+        } else {
+            return new Promise((resolve) => {
+                storageAPI.sync.get(this.KEYS.PAYEE_RULES, (items) => {
+                    resolve(items[this.KEYS.PAYEE_RULES] || []);
+                });
             });
-        });
+        }
     },
 
     /**
@@ -62,9 +72,13 @@ const StorageManager = {
      * @param {Array} rules Array de regras
      */
     async setPayeeRules(rules) {
-        return new Promise((resolve) => {
-            storageAPI.sync.set({ [this.KEYS.PAYEE_RULES]: rules }, resolve);
-        });
+        if (isFirefox) {
+            await storageAPI.sync.set({ [this.KEYS.PAYEE_RULES]: rules });
+        } else {
+            return new Promise((resolve) => {
+                storageAPI.sync.set({ [this.KEYS.PAYEE_RULES]: rules }, resolve);
+            });
+        }
     },
 
     /**
@@ -113,11 +127,16 @@ const StorageManager = {
      * @returns {Promise<Array>} Array de strings
      */
     async getCategories() {
-        return new Promise((resolve) => {
-            storageAPI.sync.get(this.KEYS.CATEGORIES, (items) => {
-                resolve(items[this.KEYS.CATEGORIES] || []);
+        if (isFirefox) {
+            const items = await storageAPI.sync.get(this.KEYS.CATEGORIES);
+            return items[this.KEYS.CATEGORIES] || [];
+        } else {
+            return new Promise((resolve) => {
+                storageAPI.sync.get(this.KEYS.CATEGORIES, (items) => {
+                    resolve(items[this.KEYS.CATEGORIES] || []);
+                });
             });
-        });
+        }
     },
 
     /**
@@ -125,9 +144,13 @@ const StorageManager = {
      * @param {Array} categories Array de strings
      */
     async setCategories(categories) {
-        return new Promise((resolve) => {
-            storageAPI.sync.set({ [this.KEYS.CATEGORIES]: categories }, resolve);
-        });
+        if (isFirefox) {
+            await storageAPI.sync.set({ [this.KEYS.CATEGORIES]: categories });
+        } else {
+            return new Promise((resolve) => {
+                storageAPI.sync.set({ [this.KEYS.CATEGORIES]: categories }, resolve);
+            });
+        }
     },
 
     /**

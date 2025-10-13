@@ -3,6 +3,11 @@
   "name": "Budget Exporter",
   "description": "Detect bank pages and export to CSV.",
   "version": "0.1.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "budget-exporter@valtoni.github.io"
+    }
+  },
   "browser_action": {
     "default_title": "Budget Exporter - GitHub",
     "default_icon": "icon.svg"

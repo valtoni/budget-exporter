@@ -63,10 +63,17 @@ async function loadCategories() {
     categories.forEach(cat => {
         const item = document.createElement('div');
         item.className = 'category-item';
-        item.innerHTML = `
-            <span>${cat}</span>
-            <button class="btn btn-danger" onclick="removeCategory('${cat}')">Remover</button>
-        `;
+
+        const span = document.createElement('span');
+        span.textContent = cat;
+
+        const button = document.createElement('button');
+        button.className = 'btn btn-danger';
+        button.textContent = 'Remover';
+        button.onclick = () => removeCategory(cat);
+
+        item.appendChild(span);
+        item.appendChild(button);
         list.appendChild(item);
     });
 }
@@ -93,7 +100,7 @@ async function addCategory() {
 }
 
 // Remove categoria
-window.removeCategory = async function(name) {
+async function removeCategory(name) {
     if (!confirm(`Remover categoria "${name}"?`)) return;
 
     const categories = await StorageManager.getCategories();
@@ -101,7 +108,7 @@ window.removeCategory = async function(name) {
 
     await StorageManager.setCategories(filtered);
     await loadCategories();
-};
+}
 
 // Carrega regras
 async function loadRules() {
@@ -119,25 +126,58 @@ async function loadRules() {
         const item = document.createElement('div');
         item.className = 'rule-item';
 
-        const badges = [];
-        if (rule.isRegex) badges.push('<span class="badge badge-regex">REGEX</span>');
-        if (rule.category) badges.push(`<span class="badge badge-category">${rule.category}</span>`);
+        // Info section
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'rule-info';
 
-        item.innerHTML = `
-            <div class="rule-info">
-                <div class="rule-pattern">${escapeHtml(rule.pattern)}</div>
-                <div class="rule-details">
-                    ${badges.join(' ')}
-                    ${rule.replacement ? `→ ${escapeHtml(rule.replacement)}` : ''}
-                </div>
-            </div>
-            <div class="rule-actions">
-                <button class="btn btn-secondary" onclick="toggleRule(${rule.id})">
-                    ${rule.enabled ? 'Desativar' : 'Ativar'}
-                </button>
-                <button class="btn btn-danger" onclick="removeRule(${rule.id})">Remover</button>
-            </div>
-        `;
+        const patternDiv = document.createElement('div');
+        patternDiv.className = 'rule-pattern';
+        patternDiv.textContent = rule.pattern;
+
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'rule-details';
+
+        if (rule.isRegex) {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-regex';
+            badge.textContent = 'REGEX';
+            detailsDiv.appendChild(badge);
+        }
+
+        if (rule.category) {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-category';
+            badge.textContent = rule.category;
+            detailsDiv.appendChild(badge);
+        }
+
+        if (rule.replacement) {
+            const replacementText = document.createTextNode(` → ${rule.replacement}`);
+            detailsDiv.appendChild(replacementText);
+        }
+
+        infoDiv.appendChild(patternDiv);
+        infoDiv.appendChild(detailsDiv);
+
+        // Actions section
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'rule-actions';
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'btn btn-secondary';
+        toggleBtn.textContent = rule.enabled ? 'Desativar' : 'Ativar';
+        toggleBtn.onclick = () => toggleRule(rule.id);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn btn-danger';
+        removeBtn.textContent = 'Remover';
+        removeBtn.onclick = () => removeRule(rule.id);
+
+        actionsDiv.appendChild(toggleBtn);
+        actionsDiv.appendChild(removeBtn);
+
+        item.appendChild(infoDiv);
+        item.appendChild(actionsDiv);
 
         if (!rule.enabled) {
             item.style.opacity = '0.5';
@@ -186,15 +226,15 @@ async function addRule() {
 }
 
 // Remove regra
-window.removeRule = async function(ruleId) {
+async function removeRule(ruleId) {
     if (!confirm('Remover esta regra?')) return;
 
     await StorageManager.removePayeeRule(ruleId);
     await loadRules();
-};
+}
 
 // Toggle regra (ativar/desativar)
-window.toggleRule = async function(ruleId) {
+async function toggleRule(ruleId) {
     const rules = await StorageManager.getPayeeRules();
     const rule = rules.find(r => r.id === ruleId);
 
@@ -202,7 +242,7 @@ window.toggleRule = async function(ruleId) {
         await StorageManager.updatePayeeRule(ruleId, { enabled: !rule.enabled });
         await loadRules();
     }
-};
+}
 
 // Escape HTML
 function escapeHtml(text) {
