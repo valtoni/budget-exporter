@@ -70,7 +70,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 });
 
-// Listener para quando usuário clicar no ícone
-chrome.browserAction.onClicked.addListener((tab) => {
+// Listener para quando usuário clicar no ícone principal (browser_action)
+// Abre a página do GitHub
+const browserActionAPI = (typeof browser !== 'undefined' ? browser.browserAction : chrome.browserAction);
+
+browserActionAPI.onClicked.addListener(() => {
+    chrome.tabs.create({ url: 'https://github.com/valtoni' });
+});
+
+// Listener para quando usuário clicar no ícone na barra de endereços (page_action)
+// Exporta as transações
+const pageActionAPI = (typeof browser !== 'undefined' ? browser.pageAction : chrome.pageAction);
+
+pageActionAPI.onClicked.addListener((tab) => {
     chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_AND_EXPORT' });
 });

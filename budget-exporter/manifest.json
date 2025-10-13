@@ -4,8 +4,27 @@
   "description": "Detect bank pages and export to CSV.",
   "version": "0.1.0",
   "browser_action": {
-    "default_title": "Exportar para CSV",
+    "default_title": "Budget Exporter - GitHub",
     "default_icon": "icon.svg"
+  },
+  "page_action": {
+    "default_title": "Exportar transações para CSV",
+    "default_icon": "icon-pageaction.svg",
+    "show_matches": [
+      "*://*.desjardins.com/*",
+      "*://*.koho.ca/*",
+      "*://*.banqueinterac.com/*",
+      "*://*.rbcroyalbank.com/*",
+      "*://*.td.com/*",
+      "*://*.scotiabank.com/*",
+      "*://*.bmo.com/*",
+      "*://*.cibc.com/*",
+      "*://*.nbc.ca/*",
+      "*://*.hsbc.ca/*",
+      "*://*.tangerine.ca/*",
+      "*://*.simplii.com/*",
+      "*://*.eqbank.ca/*"
+    ]
   },
   "background": {
     "scripts": ["bank-utils.js", "background.js"],
