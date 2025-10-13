@@ -71,11 +71,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 // Listener para quando usuário clicar no ícone principal (browser_action)
-// Abre a página do GitHub
+// Abre a página de gerenciamento
 const browserActionAPI = (typeof browser !== 'undefined' ? browser.browserAction : chrome.browserAction);
+const runtimeAPI = (typeof browser !== 'undefined' ? browser.runtime : chrome.runtime);
 
 browserActionAPI.onClicked.addListener(() => {
-    chrome.tabs.create({ url: 'https://github.com/valtoni' });
+    runtimeAPI.openOptionsPage();
 });
 
 // Listener para quando usuário clicar no ícone na barra de endereços (page_action)

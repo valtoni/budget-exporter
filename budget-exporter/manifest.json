@@ -27,7 +27,7 @@
     ]
   },
   "background": {
-    "scripts": ["bank-utils.js", "background.js"],
+    "scripts": ["storage-manager.js", "bank-utils.js", "background.js"],
     "persistent": false
   },
   "permissions": [
@@ -51,6 +51,10 @@
   "web_accessible_resources": [
     "bank-*.js"
   ],
+  "options_ui": {
+    "page": "manage.html",
+    "open_in_tab": true
+  },
   "content_scripts": [
     {
       "matches": [
@@ -68,7 +72,7 @@
         "*://*.simplii.com/*",
         "*://*.eqbank.ca/*"
       ],
-      "js": ["bank-utils.js", "content.js"],
+      "js": ["storage-manager.js", "bank-utils.js", "content.js"],
       "run_at": "document_idle"
     }
   ]

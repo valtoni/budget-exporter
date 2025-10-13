@@ -78,10 +78,14 @@ function extractDescription(td) {
 }
 
 // Função de conversão para CSV no formato YNAB
-export function toCsv(rows = []) {
-    const header = ["Date", "Payee", "Memo", "Outflow", "Inflow"];
+// Aplica regras de matching automaticamente
+export async function toCsv(rows = []) {
+    const header = ["Date", "Payee", "Category", "Memo", "Outflow", "Inflow"];
 
-    const body = rows.map((r) => {
+    // Carrega StorageManager se disponível
+    const hasStorage = typeof window !== 'undefined' && window.StorageManager;
+
+    const body = await Promise.all(rows.map(async (r) => {
         // Parse da data francesa para ISO
         let date = r.date;
         try {
@@ -90,8 +94,23 @@ export function toCsv(rows = []) {
             console.warn('Erro ao converter data:', r.date, e);
         }
 
-        const payee = r.payee || '';
-        const memo = '';
+        let payee = r.payee || '';
+        let category = '';
+        let memo = '';
+
+        // Aplica regras de matching se StorageManager estiver disponível
+        if (hasStorage) {
+            try {
+                const result = await window.StorageManager.applyRules(payee);
+                if (result.matched) {
+                    payee = result.payee;
+                    category = result.category;
+                    memo = `Original: ${r.payee}`;
+                }
+            } catch (e) {
+                console.warn('Erro ao aplicar regras:', e);
+            }
+        }
 
         // Processa o valor: remove espaços, $, e normaliza decimais
         const amountRaw = r.amount || '';
@@ -105,9 +124,9 @@ export function toCsv(rows = []) {
         const inflow = isInflow ? amount.replace(/[^\d.]/g, '') : '';
         const outflow = !isInflow ? amount.replace(/[^\d.]/g, '') : '';
 
-        return [date, payee, memo, outflow, inflow]
+        return [date, payee, category, memo, outflow, inflow]
             .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
-    });
+    }));
 
     return [header.join(","), ...body].join("\n");
 }
