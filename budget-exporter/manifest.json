@@ -3,9 +3,8 @@
   "name": "Budget Exporter",
   "description": "Detect bank pages and export to CSV.",
   "version": "0.1.0",
-  "browser_action": {
-    "default_title": "Budget Exporter",
-    "default_popup": "popup.html"
+  "page_action": {
+    "default_title": "Exportar para CSV"
   },
   "background": {
     "scripts": ["background.js"],
@@ -49,9 +48,5 @@
       "js": ["content.js"],
       "run_at": "document_idle"
     }
-  ],
-  "options_ui": {
-    "page": "options.html",
-    "open_in_tab": true
-  }
+  ]
 }

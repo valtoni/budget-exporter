@@ -138,11 +138,11 @@ async function loadBankConverter(bankName) {
     return (rows) => toCsv('generic', rows);
 }
 
+// Listener para habilitar o ícone na barra de endereços
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    // Responde ao teste básico do popup
-    if (msg.type === 'PING') {
-        sendResponse({ ok: true, pong: true, from: 'background', receivedFrom: msg.from || 'unknown' });
-        return; // resposta síncrona, não mantém o canal aberto
+    if (msg.type === 'ENABLE_PAGE_ACTION' && sender.tab) {
+        chrome.pageAction.show(sender.tab.id);
+        return;
     }
 
     if (msg.type === "EXPORT_ROWS" && Array.isArray(msg.rows)) {
@@ -191,4 +191,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         
         return true;
     }
+});
+
+// Listener para quando usuário clicar no ícone na barra de endereços
+chrome.pageAction.onClicked.addListener((tab) => {
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_AND_EXPORT' });
 });
