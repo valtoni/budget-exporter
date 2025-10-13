@@ -42,24 +42,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     return;
                 }
 
-                // Carrega o módulo do banco com os seletores
+                // Carrega o módulo do banco
                 const bankModule = await window.BankUtils.loadBankModule(bankName);
 
-                if (!bankModule.selectors) {
-                    alert(`Seletores não configurados para o banco: ${bankName}`);
-                    return;
-                }
+                let rows;
 
-                // Extrai os dados usando os seletores do banco
-                const result = extractRows(bankModule.selectors);
-
-                if (!result.ok) {
-                    alert(`Erro ao extrair transações: ${result.error}`);
-                    return;
+                // Verifica se o banco tem função customizada de extração
+                if (bankModule.extractTransactions && typeof bankModule.extractTransactions === 'function') {
+                    // Usa a função customizada do banco (ex: Desjardins)
+                    rows = bankModule.extractTransactions();
+                    // Alerta que nanhuma transação foi encontrada
+                    if (!rows || rows.length === 0) {
+                        alert('Nenhuma transação encontrada na página.');
+                        return;
+                    }
+                } else {
+                    // Alerta que nenhum seletor foi configurado para o banco
+                    if (!bankModule.selectors) {
+                        alert(`Seletores não configurados para o banco: ${bankName}`);
+                        return;
+                    }
                 }
 
                 // Envia os dados brutos para o background processar
-                chrome.runtime.sendMessage({ type: 'EXPORT_ROWS', rows: result.rows });
+                await chrome.runtime.sendMessage({type: 'EXPORT_ROWS', rows});
 
             } catch (error) {
                 alert(`Erro: ${error.message}`);

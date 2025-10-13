@@ -43,6 +43,24 @@ const BANK_ALIASES = {
     eq: 'eqbank',
 };
 
+
+function extractDomainName(parts) {
+    let domainName;
+    if (parts.length >= 3 && (parts[parts.length - 2] === 'co' || parts[parts.length - 2] === 'com')) {
+        // Ex: rbc.co.uk -> pega "rbc"
+        domainName = parts[parts.length - 3];
+    } else if (parts.length >= 2) {
+        // Ex: accesdc.mouv.desjardins.com -> pega "desjardins"
+        domainName = parts[parts.length - 2];
+    } else {
+        // Fallback: usa o primeiro segmento
+        domainName = parts[0];
+    }
+
+    // Normalized domain
+    return domainName.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 /**
  * Detecta o banco a partir de uma URL
  * @param {string} url - URL completa ou hostname
@@ -51,12 +69,15 @@ const BANK_ALIASES = {
 function detectBank(url) {
     try {
         const hostname = new URL(url).hostname.replace('www.', '');
-        const normalized = hostname.split('.')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-
+        // Extrai o domínio principal (ex: desjardins.com, koho.ca, rbc.co.uk)
+        // Estratégia: pega as últimas 2 partes para .com/.ca ou últimas 3 para .co.uk/.com.br
+        const parts = hostname.split('.');
+        let normalized = extractDomainName(parts);
         return BANK_ALIASES[normalized] || null;
     } catch (e) {
         // Se não for URL completa, tenta extrair do hostname direto
-        const normalized = String(url).replace('www.', '').split('.')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        const parts = String(url).replace('www.', '').split('.');
+        let normalized = extractDomainName(parts);
         return BANK_ALIASES[normalized] || null;
     }
 }

@@ -26,19 +26,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 // Converte para CSV usando a função do banco
                 const csv = bankModule.toCsv(msg.rows);
 
+                console.log('CSV gerado com sucesso:', csv.substring(0, 100) + '...');
+
                 // Cria o blob e inicia o download
-                const blob = new Blob([csv], { type: "text/csv" });
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
                 const url = URL.createObjectURL(blob);
 
-                const downloadId = await chrome.downloads.download({
-                    url,
-                    filename: `${bankName.toUpperCase()}-EXPORT-${new Date().toISOString().slice(0,10)}.csv`,
-                    saveAs: true
-                });
+                const filename = `${bankName.toUpperCase()}-EXPORT-${new Date().toISOString().slice(0,10)}.csv`;
 
-                URL.revokeObjectURL(url);
-                console.log('Download iniciado com ID:', downloadId);
-                sendResponse({ ok: true, downloadId });
+                // Usa a API correta dependendo do browser
+                const downloadsAPI = (typeof browser !== 'undefined' ? browser.downloads : chrome.downloads);
+
+                let downloadId;
+                try {
+                    downloadId = await downloadsAPI.download({
+                        url: url,
+                        filename: filename,
+                        saveAs: true,
+                        conflictAction: 'uniquify'
+                    });
+
+                    console.log('Download iniciado com ID:', downloadId);
+
+                    // Aguarda um pouco antes de revogar a URL (Firefox precisa disso)
+                    setTimeout(() => {
+                        URL.revokeObjectURL(url);
+                    }, 1000);
+
+                    sendResponse({ ok: true, downloadId });
+                } catch (downloadError) {
+                    URL.revokeObjectURL(url);
+                    console.error('Erro ao iniciar download:', downloadError);
+                    sendResponse({ ok: false, error: `Erro no download: ${downloadError.message}` });
+                }
 
             } catch (error) {
                 console.error('Erro ao processar exportação:', error);
