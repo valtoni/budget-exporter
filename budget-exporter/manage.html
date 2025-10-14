@@ -201,7 +201,7 @@
 
         <!-- Tab: Regras de Payee -->
         <div class="tab-content active" id="tab-rules">
-            <div class="section-title">Adicionar Nova Regra</div>
+            <div class="section-title" id="form-title">Nova Regra</div>
 
             <form id="add-rule-form">
                 <div class="form-group">
@@ -236,7 +236,10 @@
                     </small>
                 </div>
 
-                <button type="submit" class="btn btn-primary">Adicionar Regra</button>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Adicionar Regra</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-btn" style="display: none;">Cancelar</button>
+                </div>
             </form>
 
             <div class="section-title" style="margin-top: 40px;">Regras existentes</div>

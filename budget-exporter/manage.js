@@ -1,5 +1,8 @@
 // Script para página de gerenciamento
 
+// Estado do formulário
+let editingRuleId = null;
+
 // Inicialização
 document.addEventListener('DOMContentLoaded', async () => {
     await StorageManager.init();
@@ -31,6 +34,11 @@ function setupEventListeners() {
     document.getElementById('rule-regex').addEventListener('change', (e) => {
         const memoField = document.getElementById('memo-field');
         memoField.style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    // Botão de cancelar edição
+    document.getElementById('cancel-btn').addEventListener('click', () => {
+        cancelEdit();
     });
 }
 
@@ -178,6 +186,11 @@ async function loadRules() {
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'rule-actions';
 
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn btn-primary';
+        editBtn.textContent = 'Alterar';
+        editBtn.onclick = () => editRule(rule);
+
         const toggleBtn = document.createElement('button');
         toggleBtn.className = 'btn btn-secondary';
         toggleBtn.textContent = rule.enabled ? 'Desativar' : 'Ativar';
@@ -188,6 +201,7 @@ async function loadRules() {
         removeBtn.textContent = 'Remover';
         removeBtn.onclick = () => removeRule(rule.id);
 
+        actionsDiv.appendChild(editBtn);
         actionsDiv.appendChild(toggleBtn);
         actionsDiv.appendChild(removeBtn);
 
@@ -202,7 +216,7 @@ async function loadRules() {
     });
 }
 
-// Adiciona regra
+// Adiciona ou modifica regra
 async function addRule() {
     const pattern = document.getElementById('rule-pattern').value.trim();
     const replacement = document.getElementById('rule-replacement').value.trim();
@@ -225,13 +239,64 @@ async function addRule() {
         }
     }
 
-    await StorageManager.addPayeeRule({
-        pattern,
-        replacement,
-        category,
-        isRegex,
-        memoTemplate: isRegex ? memoTemplate : '' // Só salva se regex estiver marcado
-    });
+    if (editingRuleId) {
+        // Modo edição
+        const rules = await StorageManager.getPayeeRules();
+        const ruleIndex = rules.findIndex(r => r.id === editingRuleId);
+
+        if (ruleIndex !== -1) {
+            rules[ruleIndex] = {
+                ...rules[ruleIndex],
+                pattern,
+                replacement,
+                category,
+                isRegex,
+                memoTemplate: isRegex ? memoTemplate : ''
+            };
+            await StorageManager.setPayeeRules(rules);
+        }
+    } else {
+        // Modo adicionar
+        await StorageManager.addPayeeRule({
+            pattern,
+            replacement,
+            category,
+            isRegex,
+            memoTemplate: isRegex ? memoTemplate : ''
+        });
+    }
+
+    cancelEdit();
+    await loadRules();
+}
+
+// Editar regra
+function editRule(rule) {
+    editingRuleId = rule.id;
+
+    // Preenche os campos
+    document.getElementById('rule-pattern').value = rule.pattern || '';
+    document.getElementById('rule-replacement').value = rule.replacement || '';
+    document.getElementById('rule-category').value = rule.category || '';
+    document.getElementById('rule-regex').checked = rule.isRegex || false;
+    document.getElementById('rule-memo').value = rule.memoTemplate || '';
+
+    // Mostra campo de memo se for regex
+    const memoField = document.getElementById('memo-field');
+    memoField.style.display = rule.isRegex ? 'block' : 'none';
+
+    // Atualiza UI
+    document.getElementById('form-title').textContent = 'Editar Regra';
+    document.getElementById('submit-btn').textContent = 'Modificar Regra';
+    document.getElementById('cancel-btn').style.display = 'inline-block';
+
+    // Scroll para o topo
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Cancela edição
+function cancelEdit() {
+    editingRuleId = null;
 
     // Limpa form
     document.getElementById('rule-pattern').value = '';
@@ -241,7 +306,10 @@ async function addRule() {
     document.getElementById('rule-memo').value = '';
     document.getElementById('memo-field').style.display = 'none';
 
-    await loadRules();
+    // Restaura UI
+    document.getElementById('form-title').textContent = 'Nova Regra';
+    document.getElementById('submit-btn').textContent = 'Adicionar Regra';
+    document.getElementById('cancel-btn').style.display = 'none';
 }
 
 // Remove regra
