@@ -52,7 +52,14 @@ const StorageManager = {
 
     /**
      * Obtém regras de payee
-     * @returns {Promise<Array>} Array de regras { pattern, replacement, category, isRegex }
+     * @returns {Promise<Array>} Array de regras com os seguintes campos:
+     *   - id: Number - Identificador único gerado com Date.now()
+     *   - pattern: String - Padrão de busca (texto ou regex)
+     *   - replacement: String - Texto para substituir o payee original
+     *   - category: String - Categoria a ser atribuída (pode ser vazia)
+     *   - isRegex: Boolean - Indica se o pattern é uma expressão regular
+     *   - memoTemplate: String - Template de memo com grupos de captura (\1, \2, etc.)
+     *   - enabled: Boolean - Indica se a regra está ativa
      */
     async getPayeeRules() {
         if (isFirefox) {
