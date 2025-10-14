@@ -40,7 +40,7 @@ function setupEventListeners() {
     // Toggle campo de memo quando regex é marcado
     document.getElementById('rule-regex').addEventListener('change', (e) => {
         const memoField = document.getElementById('memo-field');
-        memoField.style.display = e.target.checked ? 'block' : 'none';
+        memoField.classList.toggle('hidden', !e.target.checked);
     });
 
     // Botão de cancelar edição
@@ -94,7 +94,7 @@ async function loadBanks() {
         // Formata nome: 'all' vira 'Todos os bancos'
         if (bank.id === 0) {
             span.textContent = 'Todos os bancos (coringa)';
-            span.style.fontWeight = 'bold';
+            span.className = 'bank-wildcard';
         } else {
             span.textContent = bank.name;
         }
@@ -106,8 +106,7 @@ async function loadBanks() {
         // Não permite remover o banco coringa (id: 0)
         if (bank.id === 0) {
             button.disabled = true;
-            button.style.opacity = '0.5';
-            button.style.cursor = 'not-allowed';
+            button.classList.add('btn-disabled');
         }
 
         item.appendChild(span);
@@ -416,12 +415,12 @@ function editRule(rule) {
 
     // Mostra campo de memo se for regex
     const memoField = document.getElementById('memo-field');
-    memoField.style.display = rule.isRegex ? 'block' : 'none';
+    memoField.classList.toggle('hidden', !rule.isRegex);
 
     // Atualiza UI
     document.getElementById('form-title').textContent = 'Editar Regra';
     document.getElementById('submit-btn').textContent = 'Modificar Regra';
-    document.getElementById('cancel-btn').style.display = 'inline-block';
+    document.getElementById('cancel-btn').classList.remove('hidden');
 
     // Scroll para o topo
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -438,12 +437,12 @@ function cancelEdit() {
     document.getElementById('rule-category').value = '';
     document.getElementById('rule-regex').checked = false;
     document.getElementById('rule-memo').value = '';
-    document.getElementById('memo-field').style.display = 'none';
+    document.getElementById('memo-field').classList.add('hidden');
 
     // Restaura UI
     document.getElementById('form-title').textContent = 'Nova Regra';
     document.getElementById('submit-btn').textContent = 'Adicionar Regra';
-    document.getElementById('cancel-btn').style.display = 'none';
+    document.getElementById('cancel-btn').classList.add('hidden');
 }
 
 // Remove regra
