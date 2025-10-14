@@ -223,6 +223,7 @@ async function removeBank(bankId) {
 // Carrega regras
 async function loadRules() {
     const rules = await StorageManager.getPayeeRules();
+    const banks = await StorageManager.getBanks();
     const list = document.getElementById('rules-list');
 
     list.innerHTML = '';
@@ -232,69 +233,85 @@ async function loadRules() {
         return;
     }
 
+    // Cria tabela
+    const table = document.createElement('table');
+    table.className = 'rules-table';
+
+    // Cabeçalho
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+        <tr>
+            <th class="col-bank">Banco</th>
+            <th class="col-pattern">Padrão</th>
+            <th class="col-replacement">Substituição</th>
+            <th class="col-category">Categoria</th>
+            <th class="col-memo">Memo</th>
+            <th class="col-actions">Ações</th>
+        </tr>
+    `;
+    table.appendChild(thead);
+
+    // Corpo
+    const tbody = document.createElement('tbody');
+
     rules.forEach(rule => {
-        const item = document.createElement('div');
-        item.className = 'rule-item';
-
-        // Info section
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'rule-info';
-
-        const patternDiv = document.createElement('div');
-        patternDiv.className = 'rule-pattern';
-        patternDiv.textContent = rule.pattern;
-
-        const detailsDiv = document.createElement('div');
-        detailsDiv.className = 'rule-details';
-
-        if (rule.bankId) {
-            (async () => {
-                const banks = await StorageManager.getBanks();
-                const bank = banks.find(b => b.id === rule.bankId);
-                if (bank) {
-                    const badge = document.createElement('span');
-                    badge.className = 'badge badge-regex';
-                    badge.style.background = '#607D8B';
-                    badge.textContent = bank.name.toUpperCase();
-                    detailsDiv.insertBefore(badge, detailsDiv.firstChild);
-                }
-            })();
+        const row = document.createElement('tr');
+        if (!rule.enabled) {
+            row.className = 'disabled';
         }
 
+        // Coluna Banco
+        const bankCell = document.createElement('td');
+        const bank = banks.find(b => b.id === rule.bankId);
+        if (bank) {
+            if (bank.id === 0) {
+                bankCell.textContent = 'Todos';
+            } else {
+                bankCell.textContent = bank.name.charAt(0).toUpperCase() + bank.name.slice(1);
+            }
+        } else {
+            bankCell.innerHTML = '<span class="text-muted">-</span>';
+        }
+        row.appendChild(bankCell);
+
+        // Coluna Padrão
+        const patternCell = document.createElement('td');
+        patternCell.textContent = rule.pattern;
         if (rule.isRegex) {
             const badge = document.createElement('span');
             badge.className = 'badge badge-regex';
             badge.textContent = 'REGEX';
-            detailsDiv.appendChild(badge);
+            patternCell.appendChild(badge);
         }
+        row.appendChild(patternCell);
 
-        if (rule.category) {
-            const badge = document.createElement('span');
-            badge.className = 'badge badge-category';
-            badge.textContent = rule.category;
-            detailsDiv.appendChild(badge);
+        // Coluna Substituição
+        const replacementCell = document.createElement('td');
+        replacementCell.textContent = rule.replacement || '-';
+        if (!rule.replacement) {
+            replacementCell.innerHTML = '<span class="text-muted">-</span>';
         }
+        row.appendChild(replacementCell);
 
-        if (rule.replacement) {
-            const replacementText = document.createTextNode(` → ${rule.replacement}`);
-            detailsDiv.appendChild(replacementText);
+        // Coluna Categoria
+        const categoryCell = document.createElement('td');
+        categoryCell.textContent = rule.category || '-';
+        if (!rule.category) {
+            categoryCell.innerHTML = '<span class="text-muted">-</span>';
         }
+        row.appendChild(categoryCell);
 
-        if (rule.memoTemplate) {
-            const memoText = document.createElement('div');
-            memoText.style.fontSize = '12px';
-            memoText.style.color = '#888';
-            memoText.style.marginTop = '5px';
-            memoText.textContent = `Memo: ${rule.memoTemplate}`;
-            detailsDiv.appendChild(memoText);
+        // Coluna Memo
+        const memoCell = document.createElement('td');
+        memoCell.textContent = rule.memoTemplate || '-';
+        if (!rule.memoTemplate) {
+            memoCell.innerHTML = '<span class="text-muted">-</span>';
         }
+        row.appendChild(memoCell);
 
-        infoDiv.appendChild(patternDiv);
-        infoDiv.appendChild(detailsDiv);
-
-        // Actions section
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'rule-actions';
+        // Coluna Ações
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'rule-actions';
 
         const editBtn = document.createElement('button');
         editBtn.className = 'btn btn-primary';
@@ -311,19 +328,16 @@ async function loadRules() {
         removeBtn.textContent = 'Remover';
         removeBtn.onclick = () => removeRule(rule.id);
 
-        actionsDiv.appendChild(editBtn);
-        actionsDiv.appendChild(toggleBtn);
-        actionsDiv.appendChild(removeBtn);
+        actionsCell.appendChild(editBtn);
+        actionsCell.appendChild(toggleBtn);
+        actionsCell.appendChild(removeBtn);
 
-        item.appendChild(infoDiv);
-        item.appendChild(actionsDiv);
-
-        if (!rule.enabled) {
-            item.style.opacity = '0.5';
-        }
-
-        list.appendChild(item);
+        row.appendChild(actionsCell);
+        tbody.appendChild(row);
     });
+
+    table.appendChild(tbody);
+    list.appendChild(table);
 }
 
 // Adiciona ou modifica regra

@@ -125,32 +125,50 @@
             margin-top: 20px;
         }
 
-        .rule-item {
-            background: #f9f9f9;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 15px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .rules-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
         }
 
-        .rule-info { flex: 1; }
+        .rules-table thead {
+            background: #f5f5f5;
+            border-bottom: 2px solid #ddd;
+        }
 
-        .rule-pattern {
+        .rules-table th {
+            padding: 12px;
+            text-align: left;
             font-weight: 600;
-            color: #333;
-            margin-bottom: 5px;
+            font-size: 13px;
+            color: #555;
         }
 
-        .rule-details {
-            font-size: 13px;
-            color: #666;
+        .rules-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 14px;
         }
+
+        .rules-table tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        .rules-table tbody tr.disabled {
+            opacity: 0.5;
+        }
+
+        .col-bank { width: 15%; }
+        .col-pattern { width: 25%; }
+        .col-replacement { width: 20%; }
+        .col-category { width: 15%; }
+        .col-memo { width: 15%; }
+        .col-actions { width: 10%; text-align: right; }
 
         .rule-actions button {
             margin-left: 5px;
+            padding: 6px 12px;
+            font-size: 12px;
         }
 
         .badge {
@@ -159,11 +177,16 @@
             border-radius: 3px;
             font-size: 11px;
             font-weight: 600;
-            margin-right: 5px;
+            margin-left: 8px;
         }
 
         .badge-regex { background: #2196F3; color: white; }
-        .badge-category { background: #FF9800; color: white; }
+        .badge-bank { background: #607D8B; color: white; }
+
+        .text-muted {
+            color: #999;
+            font-style: italic;
+        }
 
         .empty-state {
             text-align: center;
