@@ -140,7 +140,8 @@ export async function toCsv(rows = []) {
 
     if (hasStorage) {
         try {
-            rules = await window.StorageManager.getPayeeRules();
+            // Obtém regras do banco 'desjardins' + regras do banco coringa (id: 0)
+            rules = await window.StorageManager.getRulesForBank('desjardins');
         } catch (e) {
             console.warn('Erro ao carregar regras:', e);
         }

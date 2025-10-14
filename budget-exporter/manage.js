@@ -6,6 +6,7 @@ let editingRuleId = null;
 // Inicialização
 document.addEventListener('DOMContentLoaded', async () => {
     await StorageManager.init();
+    await loadBanks();
     await loadCategories();
     await loadRules();
     setupEventListeners();
@@ -30,6 +31,12 @@ function setupEventListeners() {
         await addCategory();
     });
 
+    // Form de adicionar banco
+    document.getElementById('add-bank-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await addBank();
+    });
+
     // Toggle campo de memo quando regex é marcado
     document.getElementById('rule-regex').addEventListener('change', (e) => {
         const memoField = document.getElementById('memo-field');
@@ -49,6 +56,64 @@ function switchTab(tabName) {
 
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
     document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+// Carrega bancos no select e na lista
+async function loadBanks() {
+    const banks = await StorageManager.getBanks();
+
+    // Popula select de bancos
+    const select = document.getElementById('rule-bank');
+    select.innerHTML = '<option value="">Selecione um banco</option>';
+    banks.forEach(bank => {
+        const option = document.createElement('option');
+        option.value = bank.id;
+        // Formata nome: 'all' vira 'Todos os bancos', outros são capitalizados
+        if (bank.id === 0) {
+            option.textContent = 'Todos os bancos';
+        } else {
+            option.textContent = bank.name.charAt(0).toUpperCase() + bank.name.slice(1);
+        }
+        select.appendChild(option);
+    });
+
+    // Popula lista de bancos
+    const list = document.getElementById('banks-list');
+    list.innerHTML = '';
+
+    if (banks.length === 0) {
+        list.innerHTML = '<div class="empty-state">Nenhum banco cadastrado</div>';
+        return;
+    }
+
+    banks.forEach(bank => {
+        const item = document.createElement('div');
+        item.className = 'category-item';
+
+        const span = document.createElement('span');
+        // Formata nome: 'all' vira 'Todos os bancos'
+        if (bank.id === 0) {
+            span.textContent = 'Todos os bancos (coringa)';
+            span.style.fontWeight = 'bold';
+        } else {
+            span.textContent = bank.name;
+        }
+
+        const button = document.createElement('button');
+        button.className = 'btn btn-danger';
+        button.textContent = 'Remover';
+        button.onclick = () => removeBank(bank.id);
+        // Não permite remover o banco coringa (id: 0)
+        if (bank.id === 0) {
+            button.disabled = true;
+            button.style.opacity = '0.5';
+            button.style.cursor = 'not-allowed';
+        }
+
+        item.appendChild(span);
+        item.appendChild(button);
+        list.appendChild(item);
+    });
 }
 
 // Carrega categorias no select e na lista
@@ -124,6 +189,37 @@ async function removeCategory(name) {
     await loadCategories();
 }
 
+// Adiciona banco
+async function addBank() {
+    const input = document.getElementById('bank-name');
+    const name = input.value.trim().toLowerCase();
+
+    if (!name) return;
+
+    const banks = await StorageManager.getBanks();
+
+    if (banks.find(b => b.name === name)) {
+        alert('Banco já existe!');
+        return;
+    }
+
+    await StorageManager.addBank({ name });
+
+    input.value = '';
+    await loadBanks();
+}
+
+// Remove banco
+async function removeBank(bankId) {
+    const banks = await StorageManager.getBanks();
+    const bank = banks.find(b => b.id === bankId);
+
+    if (!confirm(`Remover banco "${bank.name}"?`)) return;
+
+    await StorageManager.removeBank(bankId);
+    await loadBanks();
+}
+
 // Carrega regras
 async function loadRules() {
     const rules = await StorageManager.getPayeeRules();
@@ -150,6 +246,20 @@ async function loadRules() {
 
         const detailsDiv = document.createElement('div');
         detailsDiv.className = 'rule-details';
+
+        if (rule.bankId) {
+            (async () => {
+                const banks = await StorageManager.getBanks();
+                const bank = banks.find(b => b.id === rule.bankId);
+                if (bank) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge badge-regex';
+                    badge.style.background = '#607D8B';
+                    badge.textContent = bank.name.toUpperCase();
+                    detailsDiv.insertBefore(badge, detailsDiv.firstChild);
+                }
+            })();
+        }
 
         if (rule.isRegex) {
             const badge = document.createElement('span');
@@ -218,11 +328,17 @@ async function loadRules() {
 
 // Adiciona ou modifica regra
 async function addRule() {
+    const bankId = parseInt(document.getElementById('rule-bank').value);
     const pattern = document.getElementById('rule-pattern').value.trim();
     const replacement = document.getElementById('rule-replacement').value.trim();
     const category = document.getElementById('rule-category').value;
     const isRegex = document.getElementById('rule-regex').checked;
     const memoTemplate = document.getElementById('rule-memo').value.trim();
+
+    if (!bankId) {
+        alert('Banco é obrigatório!');
+        return;
+    }
 
     if (!pattern) {
         alert('Padrão de busca é obrigatório!');
@@ -247,6 +363,7 @@ async function addRule() {
         if (ruleIndex !== -1) {
             rules[ruleIndex] = {
                 ...rules[ruleIndex],
+                bankId,
                 pattern,
                 replacement,
                 category,
@@ -258,6 +375,7 @@ async function addRule() {
     } else {
         // Modo adicionar
         await StorageManager.addPayeeRule({
+            bankId,
             pattern,
             replacement,
             category,
@@ -275,6 +393,7 @@ function editRule(rule) {
     editingRuleId = rule.id;
 
     // Preenche os campos
+    document.getElementById('rule-bank').value = rule.bankId || '';
     document.getElementById('rule-pattern').value = rule.pattern || '';
     document.getElementById('rule-replacement').value = rule.replacement || '';
     document.getElementById('rule-category').value = rule.category || '';
@@ -299,6 +418,7 @@ function cancelEdit() {
     editingRuleId = null;
 
     // Limpa form
+    document.getElementById('rule-bank').value = '';
     document.getElementById('rule-pattern').value = '';
     document.getElementById('rule-replacement').value = '';
     document.getElementById('rule-category').value = '';

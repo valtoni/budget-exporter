@@ -197,6 +197,7 @@
         <div class="tabs">
             <button class="tab active" data-tab="rules">Regras de Payee</button>
             <button class="tab" data-tab="categories">Categorias</button>
+            <button class="tab" data-tab="banks">Bancos</button>
         </div>
 
         <!-- Tab: Regras de Payee -->
@@ -204,6 +205,14 @@
             <div class="section-title" id="form-title">Nova Regra</div>
 
             <form id="add-rule-form">
+                <div class="form-group">
+                    <label>Banco</label>
+                    <select id="rule-bank" required>
+                        <option value="">Selecione um banco</option>
+                        <!-- Populado dinamicamente via JS -->
+                    </select>
+                </div>
+
                 <div class="form-group">
                     <label>Padrão de busca</label>
                     <input type="text" id="rule-pattern" placeholder="Ex: METRO, IGA, etc." required>
@@ -258,6 +267,18 @@
             </form>
 
             <div class="categories-grid" id="categories-list"></div>
+        </div>
+
+        <!-- Tab: Bancos -->
+        <div class="tab-content" id="tab-banks">
+            <div class="section-title">Gerenciar Bancos</div>
+
+            <form id="add-bank-form" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="text" id="bank-name" placeholder="Nome do banco" style="flex: 1;" required>
+                <button type="submit" class="btn btn-primary">Adicionar</button>
+            </form>
+
+            <div class="categories-grid" id="banks-list"></div>
         </div>
     </div>
 

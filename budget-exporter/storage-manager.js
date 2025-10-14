@@ -7,7 +7,8 @@ const StorageManager = {
     // Chaves do storage
     KEYS: {
         PAYEE_RULES: 'payee_rules',      // Array de regras de correspondência de payee
-        CATEGORIES: 'categories'          // Array de categorias disponíveis
+        CATEGORIES: 'categories',         // Array de categorias disponíveis
+        BANKS: 'banks'                    // Array de bancos disponíveis
     },
 
     /**
@@ -33,6 +34,26 @@ const StorageManager = {
                 'Outros'
             ]);
         }
+
+        if (!data.banks) {
+            // Bancos pré-configurados com IDs fixos para evitar duplicações
+            // ID 0 é reservado para o banco coringa (aplicável a todos os bancos)
+            await this.setBanks([
+                { id: 0, name: 'all' }, // Banco coringa
+                { id: 1, name: 'desjardins' },
+                { id: 2, name: 'rbc' },
+                { id: 3, name: 'td' },
+                { id: 4, name: 'scotiabank' },
+                { id: 5, name: 'bmo' },
+                { id: 6, name: 'cibc' },
+                { id: 7, name: 'nbc' },
+                { id: 8, name: 'hsbc' },
+                { id: 9, name: 'tangerine' },
+                { id: 10, name: 'simplii' },
+                { id: 11, name: 'eqbank' },
+                { id: 12, name: 'koho' }
+            ]);
+        }
     },
 
     /**
@@ -54,6 +75,7 @@ const StorageManager = {
      * Obtém regras de payee
      * @returns {Promise<Array>} Array de regras com os seguintes campos:
      *   - id: Number - Identificador único gerado com Date.now()
+     *   - bankId: Number - ID do banco ao qual a regra se aplica
      *   - pattern: String - Padrão de busca (texto ou regex)
      *   - replacement: String - Texto para substituir o payee original
      *   - category: String - Categoria a ser atribuída (pode ser vazia)
@@ -90,12 +112,13 @@ const StorageManager = {
 
     /**
      * Adiciona uma nova regra de payee
-     * @param {Object} rule { pattern, replacement, category, isRegex, memoTemplate }
+     * @param {Object} rule { bankId, pattern, replacement, category, isRegex, memoTemplate }
      */
     async addPayeeRule(rule) {
         const rules = await this.getPayeeRules();
         rules.push({
             id: Date.now(),
+            bankId: rule.bankId || null,
             pattern: rule.pattern,
             replacement: rule.replacement,
             category: rule.category || '',
@@ -159,6 +182,101 @@ const StorageManager = {
                 storageAPI.sync.set({ [this.KEYS.CATEGORIES]: categories }, resolve);
             });
         }
+    },
+
+    /**
+     * Obtém bancos
+     * @returns {Promise<Array>} Array de objetos { id: Number, name: String }
+     */
+    async getBanks() {
+        if (isFirefox) {
+            const items = await storageAPI.sync.get(this.KEYS.BANKS);
+            return items[this.KEYS.BANKS] || [];
+        } else {
+            return new Promise((resolve) => {
+                storageAPI.sync.get(this.KEYS.BANKS, (items) => {
+                    resolve(items[this.KEYS.BANKS] || []);
+                });
+            });
+        }
+    },
+
+    /**
+     * Salva bancos
+     * @param {Array} banks Array de objetos { id, name }
+     */
+    async setBanks(banks) {
+        if (isFirefox) {
+            await storageAPI.sync.set({ [this.KEYS.BANKS]: banks });
+        } else {
+            return new Promise((resolve) => {
+                storageAPI.sync.set({ [this.KEYS.BANKS]: banks }, resolve);
+            });
+        }
+    },
+
+    /**
+     * Adiciona um novo banco
+     * @param {Object} bank { name }
+     */
+    async addBank(bank) {
+        const banks = await this.getBanks();
+        const maxId = banks.length > 0 ? Math.max(...banks.map(b => b.id)) : 0;
+        banks.push({
+            id: maxId + 1,
+            name: bank.name
+        });
+        await this.setBanks(banks);
+    },
+
+    /**
+     * Remove um banco
+     * @param {number} bankId ID do banco
+     */
+    async removeBank(bankId) {
+        const banks = await this.getBanks();
+        const filtered = banks.filter(b => b.id !== bankId);
+        await this.setBanks(filtered);
+    },
+
+    /**
+     * Atualiza um banco
+     * @param {number} bankId ID do banco
+     * @param {Object} updates Campos a atualizar
+     */
+    async updateBank(bankId, updates) {
+        const banks = await this.getBanks();
+        const index = banks.findIndex(b => b.id === bankId);
+        if (index >= 0) {
+            banks[index] = { ...banks[index], ...updates };
+            await this.setBanks(banks);
+        }
+    },
+
+    /**
+     * Obtém banco por nome
+     * @param {string} name Nome do banco
+     * @returns {Promise<Object|null>} Objeto banco ou null
+     */
+    async getBankByName(name) {
+        const banks = await this.getBanks();
+        return banks.find(b => b.name === name) || null;
+    },
+
+    /**
+     * Obtém regras aplicáveis a um banco específico
+     * Inclui regras do banco alvo + regras do banco coringa (id: 0)
+     * @param {string} bankName Nome do banco
+     * @returns {Promise<Array>} Array de regras aplicáveis
+     */
+    async getRulesForBank(bankName) {
+        const allRules = await this.getPayeeRules();
+        const bank = await this.getBankByName(bankName);
+
+        if (!bank) return [];
+
+        // Retorna regras do banco específico + regras do banco coringa (id: 0)
+        return allRules.filter(r => r.bankId === bank.id || r.bankId === 0);
     },
 
     /**
