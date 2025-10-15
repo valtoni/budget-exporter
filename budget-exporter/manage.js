@@ -341,17 +341,20 @@ async function loadRules() {
 
 // Adiciona ou modifica regra
 async function addRule() {
-    const bankId = parseInt(document.getElementById('rule-bank').value);
+    const bankIdStr = document.getElementById('rule-bank').value;
     const pattern = document.getElementById('rule-pattern').value.trim();
     const replacement = document.getElementById('rule-replacement').value.trim();
     const category = document.getElementById('rule-category').value;
     const isRegex = document.getElementById('rule-regex').checked;
     const memoTemplate = document.getElementById('rule-memo').value.trim();
 
-    if (!bankId) {
+    // Valida se um banco foi selecionado (permite 0 para banco coringa)
+    if (bankIdStr === '' || bankIdStr === null) {
         alert('Banco é obrigatório!');
         return;
     }
+
+    const bankId = parseInt(bankIdStr);
 
     if (!pattern) {
         alert('Padrão de busca é obrigatório!');
