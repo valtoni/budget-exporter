@@ -14,9 +14,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Setup de event listeners
 function setupEventListeners() {
-    // Tabs
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    // Navegação manual entre tabs (navbar não usa data-bs-toggle)
+    document.getElementById('rules-nav').addEventListener('click', (e) => {
+        e.preventDefault();
+        showTab('tab-rules', 'rules-nav');
+    });
+
+    document.getElementById('categories-nav').addEventListener('click', (e) => {
+        e.preventDefault();
+        showTab('tab-categories', 'categories-nav');
+    });
+
+    document.getElementById('banks-nav').addEventListener('click', (e) => {
+        e.preventDefault();
+        showTab('tab-banks', 'banks-nav');
     });
 
     // Form de adicionar regra
@@ -40,7 +51,7 @@ function setupEventListeners() {
     // Toggle campo de memo quando regex é marcado
     document.getElementById('rule-regex').addEventListener('change', (e) => {
         const memoField = document.getElementById('memo-field');
-        memoField.classList.toggle('hidden', !e.target.checked);
+        memoField.classList.toggle('d-none', !e.target.checked);
     });
 
     // Botão de cancelar edição
@@ -49,13 +60,21 @@ function setupEventListeners() {
     });
 }
 
-// Troca de tabs
-function switchTab(tabName) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+// Função para trocar de tab manualmente
+function showTab(tabId, navId) {
+    // Remove active de todas as tabs
+    document.querySelectorAll('.tab-pane').forEach(tab => {
+        tab.classList.remove('show', 'active');
+    });
 
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-    document.getElementById(`tab-${tabName}`).classList.add('active');
+    // Remove active de todos os links do navbar
+    document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+
+    // Ativa a tab e o link selecionados
+    document.getElementById(tabId).classList.add('show', 'active');
+    document.getElementById(navId).classList.add('active');
 }
 
 // Carrega bancos no select e na lista
@@ -82,36 +101,41 @@ async function loadBanks() {
     list.innerHTML = '';
 
     if (banks.length === 0) {
-        list.innerHTML = '<div class="empty-state">Nenhum banco cadastrado</div>';
+        list.innerHTML = '<div class="col-12 text-center text-muted py-4">Nenhum banco cadastrado</div>';
         return;
     }
 
     banks.forEach(bank => {
-        const item = document.createElement('div');
-        item.className = 'category-item';
+        const col = document.createElement('div');
+        col.className = 'col-md-4 col-sm-6';
+
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body d-flex justify-content-between align-items-center p-2';
 
         const span = document.createElement('span');
-        // Formata nome: 'all' vira 'Todos os bancos'
         if (bank.id === 0) {
             span.textContent = 'Todos os bancos (coringa)';
-            span.className = 'bank-wildcard';
+            span.className = 'fw-bold';
         } else {
             span.textContent = bank.name;
         }
 
         const button = document.createElement('button');
-        button.className = 'btn btn-danger';
+        button.className = 'btn btn-sm btn-danger';
         button.textContent = 'Remover';
         button.onclick = () => removeBank(bank.id);
-        // Não permite remover o banco coringa (id: 0)
         if (bank.id === 0) {
             button.disabled = true;
-            button.classList.add('btn-disabled');
         }
 
-        item.appendChild(span);
-        item.appendChild(button);
-        list.appendChild(item);
+        cardBody.appendChild(span);
+        cardBody.appendChild(button);
+        card.appendChild(cardBody);
+        col.appendChild(card);
+        list.appendChild(col);
     });
 }
 
@@ -134,25 +158,33 @@ async function loadCategories() {
     list.innerHTML = '';
 
     if (categories.length === 0) {
-        list.innerHTML = '<div class="empty-state">Nenhuma categoria cadastrada</div>';
+        list.innerHTML = '<div class="col-12 text-center text-muted py-4">Nenhuma categoria cadastrada</div>';
         return;
     }
 
     categories.forEach(cat => {
-        const item = document.createElement('div');
-        item.className = 'category-item';
+        const col = document.createElement('div');
+        col.className = 'col-md-4 col-sm-6';
+
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body d-flex justify-content-between align-items-center p-2';
 
         const span = document.createElement('span');
         span.textContent = cat;
 
         const button = document.createElement('button');
-        button.className = 'btn btn-danger';
+        button.className = 'btn btn-sm btn-danger';
         button.textContent = 'Remover';
         button.onclick = () => removeCategory(cat);
 
-        item.appendChild(span);
-        item.appendChild(button);
-        list.appendChild(item);
+        cardBody.appendChild(span);
+        cardBody.appendChild(button);
+        card.appendChild(cardBody);
+        col.appendChild(card);
+        list.appendChild(col);
     });
 }
 
@@ -228,24 +260,25 @@ async function loadRules() {
     list.innerHTML = '';
 
     if (rules.length === 0) {
-        list.innerHTML = '<div class="empty-state">Nenhuma regra cadastrada</div>';
+        list.innerHTML = '<div class="text-center text-muted py-5">Nenhuma regra cadastrada</div>';
         return;
     }
 
-    // Cria tabela
+    // Cria tabela Bootstrap
     const table = document.createElement('table');
-    table.className = 'rules-table';
+    table.className = 'table table-hover table-striped';
 
     // Cabeçalho
     const thead = document.createElement('thead');
+    thead.className = 'table-light';
     thead.innerHTML = `
         <tr>
-            <th class="col-bank">Banco</th>
-            <th class="col-pattern">Padrão</th>
-            <th class="col-replacement">Substituição</th>
-            <th class="col-category">Categoria</th>
-            <th class="col-memo">Memo</th>
-            <th class="col-actions">Ações</th>
+            <th class="col-width-bank">Banco</th>
+            <th class="col-width-pattern">Padrão</th>
+            <th class="col-width-replacement">Substituição</th>
+            <th class="col-width-category">Categoria</th>
+            <th class="col-width-memo">Memo</th>
+            <th class="col-width-actions text-end">Ações</th>
         </tr>
     `;
     table.appendChild(thead);
@@ -256,7 +289,7 @@ async function loadRules() {
     rules.forEach(rule => {
         const row = document.createElement('tr');
         if (!rule.enabled) {
-            row.className = 'disabled';
+            row.className = 'table-secondary opacity-50';
         }
 
         // Coluna Banco
@@ -269,7 +302,7 @@ async function loadRules() {
                 bankCell.textContent = bank.name.charAt(0).toUpperCase() + bank.name.slice(1);
             }
         } else {
-            bankCell.innerHTML = '<span class="text-muted">-</span>';
+            bankCell.innerHTML = '<span class="text-muted fst-italic">-</span>';
         }
         row.appendChild(bankCell);
 
@@ -278,7 +311,7 @@ async function loadRules() {
         patternCell.textContent = rule.pattern;
         if (rule.isRegex) {
             const badge = document.createElement('span');
-            badge.className = 'badge badge-regex';
+            badge.className = 'badge bg-primary ms-2';
             badge.textContent = 'REGEX';
             patternCell.appendChild(badge);
         }
@@ -286,51 +319,58 @@ async function loadRules() {
 
         // Coluna Substituição
         const replacementCell = document.createElement('td');
-        replacementCell.textContent = rule.replacement || '-';
-        if (!rule.replacement) {
-            replacementCell.innerHTML = '<span class="text-muted">-</span>';
+        if (rule.replacement) {
+            replacementCell.textContent = rule.replacement;
+        } else {
+            replacementCell.innerHTML = '<span class="text-muted fst-italic">-</span>';
         }
         row.appendChild(replacementCell);
 
         // Coluna Categoria
         const categoryCell = document.createElement('td');
-        categoryCell.textContent = rule.category || '-';
-        if (!rule.category) {
-            categoryCell.innerHTML = '<span class="text-muted">-</span>';
+        if (rule.category) {
+            categoryCell.textContent = rule.category;
+        } else {
+            categoryCell.innerHTML = '<span class="text-muted fst-italic">-</span>';
         }
         row.appendChild(categoryCell);
 
         // Coluna Memo
         const memoCell = document.createElement('td');
-        memoCell.textContent = rule.memoTemplate || '-';
-        if (!rule.memoTemplate) {
-            memoCell.innerHTML = '<span class="text-muted">-</span>';
+        if (rule.memoTemplate) {
+            memoCell.textContent = rule.memoTemplate;
+        } else {
+            memoCell.innerHTML = '<span class="text-muted fst-italic">-</span>';
         }
         row.appendChild(memoCell);
 
         // Coluna Ações
         const actionsCell = document.createElement('td');
-        actionsCell.className = 'rule-actions';
+        actionsCell.className = 'text-end';
+
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'btn-group btn-group-sm';
 
         const editBtn = document.createElement('button');
-        editBtn.className = 'btn btn-primary';
+        editBtn.className = 'btn btn-outline-primary';
         editBtn.textContent = 'Alterar';
         editBtn.onclick = () => editRule(rule);
 
         const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'btn btn-secondary';
+        toggleBtn.className = 'btn btn-outline-secondary';
         toggleBtn.textContent = rule.enabled ? 'Desativar' : 'Ativar';
         toggleBtn.onclick = () => toggleRule(rule.id);
 
         const removeBtn = document.createElement('button');
-        removeBtn.className = 'btn btn-danger';
+        removeBtn.className = 'btn btn-outline-danger';
         removeBtn.textContent = 'Remover';
         removeBtn.onclick = () => removeRule(rule.id);
 
-        actionsCell.appendChild(editBtn);
-        actionsCell.appendChild(toggleBtn);
-        actionsCell.appendChild(removeBtn);
+        btnGroup.appendChild(editBtn);
+        btnGroup.appendChild(toggleBtn);
+        btnGroup.appendChild(removeBtn);
 
+        actionsCell.appendChild(btnGroup);
         row.appendChild(actionsCell);
         tbody.appendChild(row);
     });
@@ -418,12 +458,12 @@ function editRule(rule) {
 
     // Mostra campo de memo se for regex
     const memoField = document.getElementById('memo-field');
-    memoField.classList.toggle('hidden', !rule.isRegex);
+    memoField.classList.toggle('d-none', !rule.isRegex);
 
     // Atualiza UI
     document.getElementById('form-title').textContent = 'Editar Regra';
     document.getElementById('submit-btn').textContent = 'Modificar Regra';
-    document.getElementById('cancel-btn').classList.remove('hidden');
+    document.getElementById('cancel-btn').classList.remove('d-none');
 
     // Scroll para o topo
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -440,12 +480,12 @@ function cancelEdit() {
     document.getElementById('rule-category').value = '';
     document.getElementById('rule-regex').checked = false;
     document.getElementById('rule-memo').value = '';
-    document.getElementById('memo-field').classList.add('hidden');
+    document.getElementById('memo-field').classList.add('d-none');
 
     // Restaura UI
     document.getElementById('form-title').textContent = 'Nova Regra';
     document.getElementById('submit-btn').textContent = 'Adicionar Regra';
-    document.getElementById('cancel-btn').classList.add('hidden');
+    document.getElementById('cancel-btn').classList.add('d-none');
 }
 
 // Remove regra

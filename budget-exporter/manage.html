@@ -4,102 +4,133 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Budget Exporter - Gerenciamento</title>
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="manage.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Budget Exporter - Gerenciamento</h1>
-        </header>
-
-        <div class="tabs">
-            <button class="tab active" data-tab="rules">Regras de Payee</button>
-            <button class="tab" data-tab="categories">Categorias</button>
-            <button class="tab" data-tab="banks">Bancos</button>
-        </div>
-
-        <!-- Tab: Regras de Payee -->
-        <div class="tab-content active" id="tab-rules">
-            <div class="section-title" id="form-title">Nova Regra</div>
-
-            <form id="add-rule-form">
-                <div class="form-group">
-                    <label>Banco</label>
-                    <select id="rule-bank" required>
-                        <option value="">Selecione um banco</option>
-                        <!-- Populado dinamicamente via JS -->
-                    </select>
+    <div class="container-fluid p-0">
+        <!-- Navbar -->
+        <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+            <div class="container-fluid">
+                <span class="navbar-brand mb-0 h1">Budget Exporter - Gerenciamento</span>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" id="rules-nav">
+                                Regras de Payee
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" id="categories-nav">
+                                Categorias
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" id="banks-nav">
+                                Bancos
+                            </a>
+                        </li>
+                    </ul>
                 </div>
-
-                <div class="form-group">
-                    <label>Padrão de busca</label>
-                    <input type="text" id="rule-pattern" placeholder="Ex: METRO, IGA, etc." required>
-                </div>
-
-                <div class="form-group">
-                    <label>Substituir por</label>
-                    <input type="text" id="rule-replacement" placeholder="Ex: Supermercado Metro">
-                </div>
-
-                <div class="form-group">
-                    <label>Categoria</label>
-                    <select id="rule-category">
-                        <option value="">Nenhuma</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="rule-regex">
-                        Usar expressão regular (regex)
-                    </label>
-                </div>
-
-                <div class="form-group hidden" id="memo-field">
-                    <label>Template de Memo (use \1, \2, etc. para grupos capturados)</label>
-                    <input type="text" id="rule-memo" placeholder="Ex: Compra \1">
-                    <small>
-                        Use grupos de captura () no padrão e referencie com \1, \2, etc.
-                    </small>
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary" id="submit-btn">Adicionar Regra</button>
-                    <button type="button" class="btn btn-secondary hidden" id="cancel-btn">Cancelar</button>
-                </div>
-            </form>
-
-            <div class="section-title section-title--spacer">Regras existentes</div>
-            <div class="rules-list" id="rules-list">
-                <div class="empty-state">Nenhuma regra cadastrada</div>
             </div>
-        </div>
+        </nav>
 
-        <!-- Tab: Categorias -->
-        <div class="tab-content" id="tab-categories">
-            <div class="section-title">Gerenciar Categorias</div>
+        <!-- Tab Content -->
+        <div class="bg-white">
+            <div class="tab-content p-4">
+                <!-- Tab: Regras de Payee -->
+                <div class="tab-pane fade show active" id="tab-rules" role="tabpanel">
+                    <h5 class="mb-3" id="form-title">Nova Regra</h5>
 
-            <form id="add-category-form" class="inline-form">
-                <input type="text" id="category-name" class="inline-form__input" placeholder="Nome da categoria" required>
-                <button type="submit" class="btn btn-primary">Adicionar</button>
-            </form>
+                    <form id="add-rule-form">
+                        <div class="mb-3">
+                            <label for="rule-bank" class="form-label">Banco</label>
+                            <select class="form-select" id="rule-bank" required>
+                                <option value="">Selecione um banco</option>
+                            </select>
+                        </div>
 
-            <div class="categories-grid" id="categories-list"></div>
-        </div>
+                        <div class="mb-3">
+                            <label for="rule-pattern" class="form-label">Padrão de busca</label>
+                            <input type="text" class="form-control" id="rule-pattern" placeholder="Ex: METRO, IGA, etc." required>
+                        </div>
 
-        <!-- Tab: Bancos -->
-        <div class="tab-content" id="tab-banks">
-            <div class="section-title">Gerenciar Bancos</div>
+                        <div class="mb-3">
+                            <label for="rule-replacement" class="form-label">Substituir por</label>
+                            <input type="text" class="form-control" id="rule-replacement" placeholder="Ex: Supermercado Metro">
+                        </div>
 
-            <form id="add-bank-form" class="inline-form">
-                <input type="text" id="bank-name" class="inline-form__input" placeholder="Nome do banco" required>
-                <button type="submit" class="btn btn-primary">Adicionar</button>
-            </form>
+                        <div class="mb-3">
+                            <label for="rule-category" class="form-label">Categoria</label>
+                            <select class="form-select" id="rule-category">
+                                <option value="">Nenhuma</option>
+                            </select>
+                        </div>
 
-            <div class="categories-grid" id="banks-list"></div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="rule-regex">
+                            <label class="form-check-label" for="rule-regex">
+                                Usar expressão regular (regex)
+                            </label>
+                        </div>
+
+                        <div class="mb-3 d-none" id="memo-field">
+                            <label for="rule-memo" class="form-label">Template de Memo (use \1, \2, etc. para grupos capturados)</label>
+                            <input type="text" class="form-control" id="rule-memo" placeholder="Ex: Compra \1">
+                            <div class="form-text">
+                                Use grupos de captura () no padrão e referencie com \1, \2, etc.
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success" id="submit-btn">Adicionar Regra</button>
+                            <button type="button" class="btn btn-secondary d-none" id="cancel-btn">Cancelar</button>
+                        </div>
+                    </form>
+
+                    <h5 class="mt-5 mb-3">Regras existentes</h5>
+                    <div id="rules-list">
+                        <div class="text-center text-muted py-5">Nenhuma regra cadastrada</div>
+                    </div>
+                </div>
+
+                <!-- Tab: Categorias -->
+                <div class="tab-pane fade" id="tab-categories" role="tabpanel">
+                    <h5 class="mb-3">Gerenciar Categorias</h5>
+
+                    <form id="add-category-form" class="mb-3">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="category-name" placeholder="Nome da categoria" required>
+                            <button type="submit" class="btn btn-success">Adicionar</button>
+                        </div>
+                    </form>
+
+                    <div class="row g-2" id="categories-list"></div>
+                </div>
+
+                <!-- Tab: Bancos -->
+                <div class="tab-pane fade" id="tab-banks" role="tabpanel">
+                    <h5 class="mb-3">Gerenciar Bancos</h5>
+
+                    <form id="add-bank-form" class="mb-3">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="bank-name" placeholder="Nome do banco" required>
+                            <button type="submit" class="btn btn-success">Adicionar</button>
+                        </div>
+                    </form>
+
+                    <div class="row g-2" id="banks-list"></div>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- Bootstrap 5.3 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="storage-manager.js"></script>
     <script src="manage.js"></script>
 </body>

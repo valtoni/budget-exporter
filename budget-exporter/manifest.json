@@ -60,6 +60,7 @@
     "page": "manage.html",
     "open_in_tab": true
   },
+  "content_security_policy": "script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net; object-src 'self'",
   "content_scripts": [
     {
       "matches": [
