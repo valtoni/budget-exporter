@@ -396,18 +396,21 @@ async function loadRules() {
         btnGroup.className = 'btn-group btn-group-sm';
 
         const editBtn = document.createElement('button');
-        editBtn.className = 'btn btn-outline-primary';
-        editBtn.textContent = 'Alterar';
+        editBtn.className = 'btn btn-action-edit';
+        editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+        editBtn.title = 'Alterar';
         editBtn.onclick = () => editRule(rule);
 
         const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'btn btn-outline-secondary';
-        toggleBtn.textContent = rule.enabled ? 'Desativar' : 'Ativar';
+        toggleBtn.className = 'btn btn-action-toggle';
+        toggleBtn.innerHTML = rule.enabled ? '<i class="bi bi-toggle-on"></i>' : '<i class="bi bi-toggle-off"></i>';
+        toggleBtn.title = rule.enabled ? 'Desativar' : 'Ativar';
         toggleBtn.onclick = () => toggleRule(rule.id);
 
         const removeBtn = document.createElement('button');
-        removeBtn.className = 'btn btn-outline-danger';
-        removeBtn.textContent = 'Remover';
+        removeBtn.className = 'btn btn-action-remove';
+        removeBtn.innerHTML = '<i class="bi bi-trash"></i>';
+        removeBtn.title = 'Remover';
         removeBtn.onclick = () => removeRule(rule.id);
 
         btnGroup.appendChild(editBtn);
