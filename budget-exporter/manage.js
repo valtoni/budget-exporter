@@ -368,6 +368,14 @@ async function removeBank(bankId) {
 async function loadRules() {
     const rules = await StorageManager.getPayeeRules();
     const banks = await StorageManager.getBanks();
+    allRulesData = { rules, banks };
+
+    renderRulesPage(currentPage);
+}
+
+// Renderiza página de regras
+function renderRulesPage(page) {
+    const { rules, banks } = allRulesData;
     const list = document.getElementById('rules-list');
 
     list.innerHTML = '';
@@ -376,6 +384,12 @@ async function loadRules() {
         list.innerHTML = '<div class="text-center text-muted py-5">Nenhuma regra cadastrada</div>';
         return;
     }
+
+    // Calcula índices para paginação
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedRules = rules.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(rules.length / itemsPerPage);
 
     // Cria tabela Bootstrap
     const table = document.createElement('table');
@@ -399,7 +413,7 @@ async function loadRules() {
     // Corpo
     const tbody = document.createElement('tbody');
 
-    rules.forEach(rule => {
+    paginatedRules.forEach(rule => {
         const row = document.createElement('tr');
         if (!rule.enabled) {
             row.className = 'table-secondary opacity-50';
@@ -493,6 +507,70 @@ async function loadRules() {
 
     table.appendChild(tbody);
     list.appendChild(table);
+
+    // Adiciona paginação
+    if (totalPages > 1) {
+        const paginationContainer = document.createElement('nav');
+        paginationContainer.setAttribute('aria-label', 'Navegação de página');
+        paginationContainer.className = 'mt-3';
+
+        const pagination = document.createElement('ul');
+        pagination.className = 'pagination justify-content-center';
+
+        // Botão Anterior
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${page === 1 ? 'disabled' : ''}`;
+        const prevLink = document.createElement('a');
+        prevLink.className = 'page-link';
+        prevLink.href = '#';
+        prevLink.textContent = 'Anterior';
+        prevLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (page > 1) {
+                currentPage = page - 1;
+                renderRulesPage(currentPage);
+            }
+        });
+        prevLi.appendChild(prevLink);
+        pagination.appendChild(prevLi);
+
+        // Páginas numeradas
+        for (let i = 1; i <= totalPages; i++) {
+            const pageLi = document.createElement('li');
+            pageLi.className = `page-item ${i === page ? 'active' : ''}`;
+            const pageLink = document.createElement('a');
+            pageLink.className = 'page-link';
+            pageLink.href = '#';
+            pageLink.textContent = i;
+            pageLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentPage = i;
+                renderRulesPage(currentPage);
+            });
+            pageLi.appendChild(pageLink);
+            pagination.appendChild(pageLi);
+        }
+
+        // Botão Próximo
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${page === totalPages ? 'disabled' : ''}`;
+        const nextLink = document.createElement('a');
+        nextLink.className = 'page-link';
+        nextLink.href = '#';
+        nextLink.textContent = 'Próximo';
+        nextLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (page < totalPages) {
+                currentPage = page + 1;
+                renderRulesPage(currentPage);
+            }
+        });
+        nextLi.appendChild(nextLink);
+        pagination.appendChild(nextLi);
+
+        paginationContainer.appendChild(pagination);
+        list.appendChild(paginationContainer);
+    }
 }
 
 // Adiciona ou modifica regra
@@ -570,6 +648,7 @@ async function addRule() {
     }
 
     cancelEdit();
+    currentPage = 1; // Volta para primeira página
     await loadRules();
 }
 
@@ -634,6 +713,14 @@ async function removeRule(ruleId) {
     if (!confirm('Remover esta regra?')) return;
 
     await StorageManager.removePayeeRule(ruleId);
+
+    // Ajusta página se necessário
+    const rules = await StorageManager.getPayeeRules();
+    const totalPages = Math.ceil(rules.length / itemsPerPage);
+    if (currentPage > totalPages && currentPage > 1) {
+        currentPage = totalPages;
+    }
+
     await loadRules();
 }
 
@@ -657,6 +744,11 @@ function escapeHtml(text) {
 
 // Search functionality
 let currentSearchTerm = '';
+
+// Pagination
+let currentPage = 1;
+let itemsPerPage = 10;
+let allRulesData = [];
 
 function toggleSearch(button, input) {
     if (input.classList.contains('d-none')) {
