@@ -85,42 +85,49 @@
                     <h5 class="mb-3" id="form-title">Nova Regra</h5>
 
                     <form id="add-rule-form">
-                        <div class="mb-3">
-                            <label for="rule-bank" class="form-label">Banco</label>
-                            <select class="form-select" id="rule-bank" required>
-                                <option value="">Selecione um banco</option>
-                            </select>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="rule-bank" class="form-label">Banco</label>
+                                <select class="form-select" id="rule-bank" required>
+                                    <option value="">Selecione um banco</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="rule-category" class="form-label">Categoria</label>
+                                <select class="form-select" id="rule-category">
+                                    <option value="">Nenhuma</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <div class="mb-3">
-                            <label for="rule-pattern" class="form-label">Padrão de busca</label>
-                            <input type="text" class="form-control" id="rule-pattern" placeholder="Ex: METRO, IGA, etc." required>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label for="rule-pattern" class="form-label mb-0">Padrão de busca</label>
+                                    <div class="form-check mb-0">
+                                        <input type="checkbox" class="form-check-input" id="rule-regex">
+                                        <label class="form-check-label" for="rule-regex">
+                                            Usar expressão regular (regex)
+                                        </label>
+                                    </div>
+                                </div>
+                                <input type="text" class="form-control" id="rule-pattern" placeholder="Ex: METRO, IGA, etc." required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="rule-replacement" class="form-label">Substituir por</label>
+                                <input type="text" class="form-control" id="rule-replacement" placeholder="Ex: Supermercado Metro">
+                            </div>
                         </div>
 
-                        <div class="mb-3">
-                            <label for="rule-replacement" class="form-label">Substituir por</label>
-                            <input type="text" class="form-control" id="rule-replacement" placeholder="Ex: Supermercado Metro">
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="rule-category" class="form-label">Categoria</label>
-                            <select class="form-select" id="rule-category">
-                                <option value="">Nenhuma</option>
-                            </select>
-                        </div>
-
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="rule-regex">
-                            <label class="form-check-label" for="rule-regex">
-                                Usar expressão regular (regex)
-                            </label>
-                        </div>
-
-                        <div class="mb-3 d-none" id="memo-field">
-                            <label for="rule-memo" class="form-label">Template de Memo (use \1, \2, etc. para grupos capturados)</label>
-                            <input type="text" class="form-control" id="rule-memo" placeholder="Ex: Compra \1">
-                            <div class="form-text">
-                                Use grupos de captura () no padrão e referencie com \1, \2, etc.
+                        <div class="row">
+                            <div class="col-md-6 mb-3 d-none" id="memo-field">
+                                <label for="rule-memo" class="form-label">Template de Memo</label>
+                                <input type="text" class="form-control" id="rule-memo" placeholder="Ex: Compra \1">
+                                <div class="form-text">
+                                    Use grupos de captura () no padrão e referencie com \1, \2, etc.
+                                </div>
                             </div>
                         </div>
 
