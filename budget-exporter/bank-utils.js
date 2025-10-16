@@ -91,6 +91,14 @@ function detectBank(url) {
             return 'desjardins-bankaccount';
         }
 
+        // Para KOHO, detecta o tipo de conta
+        if (bankName === 'koho') {
+            if (pathname.includes('/transactions')) {
+                return 'koho-bankaccount';
+            }
+            return 'koho-bankaccount';
+        }
+
         // Para outros bancos, mantém o nome original
         return bankName;
     } catch (e) {
@@ -111,21 +119,14 @@ async function loadBankModule(accountName) {
         throw new Error('Nome da conta não informado');
     }
 
-    // Tenta carregar com o nome específico primeiro (ex: desjardins-bankaccount.js)
-    let modulePath = chrome.runtime.getURL(`${accountName}.js`);
+    // Tenta carregar com o nome específico primeiro (ex: strategy-desjardins-bankaccount.js)
+    let modulePath = chrome.runtime.getURL(`strategy-${accountName}.js`);
 
     try {
         const module = await import(modulePath);
         return module;
     } catch (error) {
-        // Fallback: tenta formato antigo bank-{name}.js
-        modulePath = chrome.runtime.getURL(`bank-${accountName}.js`);
-        try {
-            const module = await import(modulePath);
-            return module;
-        } catch (error2) {
-            throw new Error(`Módulo da conta '${accountName}' não encontrado`);
-        }
+        throw new Error(`Módulo da conta '${accountName}' não encontrado`);
     }
 }
 

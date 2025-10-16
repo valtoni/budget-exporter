@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Budget Exporter",
   "description": "Detect bank pages and export to CSV.",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "budget-exporter@valtoni.github.io"
@@ -18,7 +18,7 @@
     "show_matches": [
       "*://*.desjardins.com/comptes/courant/*",
       "*://*.desjardins.com/sommaire-perso/sommaire/sommaire-spa/CC/*",
-      "*://*.koho.ca/transactions/*"
+      "*://*.koho.ca/transactions*"
     ]
   },
   "background": {
@@ -29,19 +29,8 @@
     "storage",
     "tabs",
     "downloads",
-    "*://*.desjardins.com/comptes/courant/*",
-    "*://*.koho.ca/*",
-    "*://*.banqueinterac.com/*",
-    "*://*.rbcroyalbank.com/*",
-    "*://*.td.com/*",
-    "*://*.scotiabank.com/*",
-    "*://*.bmo.com/*",
-    "*://*.cibc.com/*",
-    "*://*.nbc.ca/*",
-    "*://*.hsbc.ca/*",
-    "*://*.tangerine.ca/*",
-    "*://*.simplii.com/*",
-    "*://*.eqbank.ca/*"
+    "*://*.desjardins.com/*",
+    "*://*.koho.ca/*"
   ],
   "web_accessible_resources": [
     "bank-*.js",
@@ -55,25 +44,8 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.desjardins.com/comptes/courant/*"
-      ],
-      "js": ["storage-manager.js", "bank-utils.js", "content.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "*://*.koho.ca/*",
-        "*://*.banqueinterac.com/*",
-        "*://*.rbcroyalbank.com/*",
-        "*://*.td.com/*",
-        "*://*.scotiabank.com/*",
-        "*://*.bmo.com/*",
-        "*://*.cibc.com/*",
-        "*://*.nbc.ca/*",
-        "*://*.hsbc.ca/*",
-        "*://*.tangerine.ca/*",
-        "*://*.simplii.com/*",
-        "*://*.eqbank.ca/*"
+        "*://*.desjardins.com/*",
+        "*://*.koho.ca/*"
       ],
       "js": ["storage-manager.js", "bank-utils.js", "content.js"],
       "run_at": "document_idle"
