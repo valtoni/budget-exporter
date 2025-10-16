@@ -102,6 +102,52 @@ function setupEventListeners() {
             }, 200);
         }
     });
+
+    // Filtro de banco
+    const bankInput = document.getElementById('rule-bank');
+    const bankDropdown = document.getElementById('bank-dropdown');
+    const bankButton = bankInput.nextElementSibling;
+
+    bankInput.addEventListener('input', (e) => {
+        filterDropdown(bankInput.value, bankDropdown);
+    });
+
+    bankInput.addEventListener('focus', () => {
+        filterDropdown(bankInput.value, bankDropdown);
+    });
+
+    bankButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        filterDropdown(bankInput.value, bankDropdown);
+    });
+
+    // Previne fechar dropdown ao clicar no input
+    bankInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+
+    // Filtro de categoria
+    const categoryInput = document.getElementById('rule-category');
+    const categoryDropdown = document.getElementById('category-dropdown');
+    const categoryButton = categoryInput.nextElementSibling;
+
+    categoryInput.addEventListener('input', (e) => {
+        filterDropdown(categoryInput.value, categoryDropdown);
+    });
+
+    categoryInput.addEventListener('focus', () => {
+        filterDropdown(categoryInput.value, categoryDropdown);
+    });
+
+    categoryButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        filterDropdown(categoryInput.value, categoryDropdown);
+    });
+
+    // Previne fechar dropdown ao clicar no input
+    categoryInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
 }
 
 // Função para trocar de tab manualmente
@@ -121,23 +167,37 @@ function showTab(tabId, navId) {
     document.getElementById(navId).classList.add('active');
 }
 
-// Carrega bancos no select e na lista
+// Carrega bancos no dropdown e na lista
 async function loadBanks() {
     const banks = await StorageManager.getBanks();
 
-    // Popula select de bancos
-    const select = document.getElementById('rule-bank');
-    select.innerHTML = '<option value="">Selecione um banco</option>';
+    // Popula dropdown de bancos
+    const dropdown = document.getElementById('bank-dropdown');
+    dropdown.innerHTML = '';
     banks.forEach(bank => {
-        const option = document.createElement('option');
-        option.value = bank.id;
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.className = 'dropdown-item';
+        a.href = '#';
+
         // Formata nome: 'all' vira 'Todos os bancos', outros são capitalizados
         if (bank.id === 0) {
-            option.textContent = 'Todos os bancos';
+            a.textContent = 'Todos os bancos';
+            a.setAttribute('data-bank-name', 'Todos os bancos');
         } else {
-            option.textContent = bank.name.charAt(0).toUpperCase() + bank.name.slice(1);
+            const displayName = bank.name.charAt(0).toUpperCase() + bank.name.slice(1);
+            a.textContent = displayName;
+            a.setAttribute('data-bank-name', displayName);
         }
-        select.appendChild(option);
+
+        a.setAttribute('data-bank-id', bank.id);
+        a.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('rule-bank').value = a.getAttribute('data-bank-name');
+        });
+
+        li.appendChild(a);
+        dropdown.appendChild(li);
     });
 
     // Popula lista de bancos
@@ -183,18 +243,27 @@ async function loadBanks() {
     });
 }
 
-// Carrega categorias no select e na lista
+// Carrega categorias no dropdown e na lista
 async function loadCategories() {
     const categories = await StorageManager.getCategories();
 
-    // Popula select
-    const select = document.getElementById('rule-category');
-    select.innerHTML = '<option value="">Nenhuma</option>';
+    // Popula dropdown de categorias
+    const dropdown = document.getElementById('category-dropdown');
+    dropdown.innerHTML = '';
     categories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat;
-        option.textContent = cat;
-        select.appendChild(option);
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.className = 'dropdown-item';
+        a.href = '#';
+        a.textContent = cat;
+
+        a.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('rule-category').value = cat;
+        });
+
+        li.appendChild(a);
+        dropdown.appendChild(li);
     });
 
     // Popula lista de categorias
@@ -428,20 +497,33 @@ async function loadRules() {
 
 // Adiciona ou modifica regra
 async function addRule() {
-    const bankIdStr = document.getElementById('rule-bank').value;
+    const bankInput = document.getElementById('rule-bank').value.trim();
     const pattern = document.getElementById('rule-pattern').value.trim();
     const replacement = document.getElementById('rule-replacement').value.trim();
-    const category = document.getElementById('rule-category').value;
+    const category = document.getElementById('rule-category').value.trim();
     const isRegex = document.getElementById('rule-regex').checked;
     const memoTemplate = document.getElementById('rule-memo').value.trim();
 
-    // Valida se um banco foi selecionado (permite 0 para banco coringa)
-    if (bankIdStr === '' || bankIdStr === null) {
+    // Valida se um banco foi selecionado
+    if (!bankInput) {
         alert('Banco é obrigatório!');
         return;
     }
 
-    const bankId = parseInt(bankIdStr);
+    // Busca o ID do banco pelo nome
+    const banks = await StorageManager.getBanks();
+    let bankId;
+
+    if (bankInput === 'Todos os bancos') {
+        bankId = 0;
+    } else {
+        const bank = banks.find(b => b.name.toLowerCase() === bankInput.toLowerCase());
+        if (!bank) {
+            alert('Banco não encontrado!');
+            return;
+        }
+        bankId = bank.id;
+    }
 
     if (!pattern) {
         alert('Padrão de busca é obrigatório!');
@@ -492,11 +574,23 @@ async function addRule() {
 }
 
 // Editar regra
-function editRule(rule) {
+async function editRule(rule) {
     editingRuleId = rule.id;
 
+    // Busca o nome do banco pelo ID
+    const banks = await StorageManager.getBanks();
+    const bank = banks.find(b => b.id === rule.bankId);
+    let bankName = '';
+    if (bank) {
+        if (bank.id === 0) {
+            bankName = 'Todos os bancos';
+        } else {
+            bankName = bank.name.charAt(0).toUpperCase() + bank.name.slice(1);
+        }
+    }
+
     // Preenche os campos
-    document.getElementById('rule-bank').value = rule.bankId || '';
+    document.getElementById('rule-bank').value = bankName;
     document.getElementById('rule-pattern').value = rule.pattern || '';
     document.getElementById('rule-replacement').value = rule.replacement || '';
     document.getElementById('rule-category').value = rule.category || '';
@@ -595,6 +689,22 @@ function filterRules(searchTerm) {
             row.style.display = '';
         } else {
             row.style.display = 'none';
+        }
+    });
+}
+
+function filterDropdown(searchTerm, dropdown) {
+    const items = dropdown.querySelectorAll('.dropdown-item');
+    const lowerSearch = searchTerm.toLowerCase();
+
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        const li = item.parentElement;
+
+        if (text.includes(lowerSearch)) {
+            li.style.display = '';
+        } else {
+            li.style.display = 'none';
         }
     });
 }

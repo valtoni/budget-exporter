@@ -88,16 +88,28 @@
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="rule-bank" class="form-label">Banco</label>
-                                <select class="form-select" id="rule-bank" required>
-                                    <option value="">Selecione um banco</option>
-                                </select>
+                                <div class="dropdown">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="rule-bank" placeholder="Selecione ou pesquise um banco" required autocomplete="off" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span class="visually-hidden">Toggle Dropdown</span>
+                                        </button>
+                                        <ul class="dropdown-menu w-100" id="bank-dropdown"></ul>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="col-md-6 mb-3">
                                 <label for="rule-category" class="form-label">Categoria</label>
-                                <select class="form-select" id="rule-category">
-                                    <option value="">Nenhuma</option>
-                                </select>
+                                <div class="dropdown">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="rule-category" placeholder="Selecione ou pesquise uma categoria" autocomplete="off" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span class="visually-hidden">Toggle Dropdown</span>
+                                        </button>
+                                        <ul class="dropdown-menu w-100" id="category-dropdown"></ul>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
