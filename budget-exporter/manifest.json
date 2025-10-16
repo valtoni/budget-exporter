@@ -16,8 +16,9 @@
     "default_title": "Exportar transações para CSV",
     "default_icon": "icon-pageaction.svg",
     "show_matches": [
-      "*://*.desjardins.com/*",
-      "*://*.koho.ca/*",
+      "*://*.desjardins.com/comptes/courant/*",
+      "*://*.desjardins.com/sommaire-perso/sommaire/sommaire-spa/CC/*",
+      "*://*.koho.ca/transactions/*",
       "*://*.banqueinterac.com/*",
       "*://*.rbcroyalbank.com/*",
       "*://*.td.com/*",
@@ -39,7 +40,7 @@
     "storage",
     "tabs",
     "downloads",
-    "*://*.desjardins.com/*",
+    "*://*.desjardins.com/comptes/courant/*",
     "*://*.koho.ca/*",
     "*://*.banqueinterac.com/*",
     "*://*.rbcroyalbank.com/*",
@@ -54,7 +55,8 @@
     "*://*.eqbank.ca/*"
   ],
   "web_accessible_resources": [
-    "bank-*.js"
+    "bank-*.js",
+    "desjardins-*.js"
   ],
   "options_ui": {
     "page": "manage.html",
@@ -64,7 +66,13 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.desjardins.com/*",
+        "*://*.desjardins.com/comptes/courant/*"
+      ],
+      "js": ["storage-manager.js", "bank-utils.js", "content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "*://*.koho.ca/*",
         "*://*.banqueinterac.com/*",
         "*://*.rbcroyalbank.com/*",

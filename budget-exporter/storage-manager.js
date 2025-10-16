@@ -8,7 +8,7 @@ const StorageManager = {
     KEYS: {
         PAYEE_RULES: 'payee_rules',      // Array de regras de correspondência de payee
         CATEGORIES: 'categories',         // Array de categorias disponíveis
-        BANKS: 'banks'                    // Array de bancos disponíveis
+        ACCOUNTS: 'accounts'              // Array de contas disponíveis
     },
 
     /**
@@ -35,23 +35,14 @@ const StorageManager = {
             ]);
         }
 
-        if (!data.banks) {
-            // Bancos pré-configurados com IDs fixos para evitar duplicações
-            // ID 0 é reservado para o banco coringa (aplicável a todos os bancos)
-            await this.setBanks([
-                { id: 0, name: 'all' }, // Banco coringa
-                { id: 1, name: 'desjardins' },
-                { id: 2, name: 'rbc' },
-                { id: 3, name: 'td' },
-                { id: 4, name: 'scotiabank' },
-                { id: 5, name: 'bmo' },
-                { id: 6, name: 'cibc' },
-                { id: 7, name: 'nbc' },
-                { id: 8, name: 'hsbc' },
-                { id: 9, name: 'tangerine' },
-                { id: 10, name: 'simplii' },
-                { id: 11, name: 'eqbank' },
-                { id: 12, name: 'koho' }
+        if (!data.accounts) {
+            // Contas pré-configuradas com IDs fixos para evitar duplicações
+            // ID 0 é reservado para a conta coringa (aplicável a todas as contas)
+            await this.setAccounts([
+                { id: 0, name: 'all' }, // Conta coringa
+                { id: 1, name: 'Desjardins - Credit Card' },
+                { id: 2, name: 'Desjardins - Bank Account' },
+                { id: 3, name: 'Koho - Prepaid Card' }
             ]);
         }
     },
@@ -75,7 +66,7 @@ const StorageManager = {
      * Obtém regras de payee
      * @returns {Promise<Array>} Array de regras com os seguintes campos:
      *   - id: Number - Identificador único gerado com Date.now()
-     *   - bankId: Number - ID do banco ao qual a regra se aplica
+     *   - accountId: Number - ID da conta à qual a regra se aplica
      *   - pattern: String - Padrão de busca (texto ou regex)
      *   - replacement: String - Texto para substituir o payee original
      *   - category: String - Categoria a ser atribuída (pode ser vazia)
@@ -112,13 +103,13 @@ const StorageManager = {
 
     /**
      * Adiciona uma nova regra de payee
-     * @param {Object} rule { bankId, pattern, replacement, category, isRegex, memoTemplate }
+     * @param {Object} rule { accountId, pattern, replacement, category, isRegex, memoTemplate }
      */
     async addPayeeRule(rule) {
         const rules = await this.getPayeeRules();
         rules.push({
             id: Date.now(),
-            bankId: rule.bankId || null,
+            accountId: rule.accountId || null,
             pattern: rule.pattern,
             replacement: rule.replacement,
             category: rule.category || '',
@@ -185,98 +176,98 @@ const StorageManager = {
     },
 
     /**
-     * Obtém bancos
+     * Obtém contas
      * @returns {Promise<Array>} Array de objetos { id: Number, name: String }
      */
-    async getBanks() {
+    async getAccounts() {
         if (isFirefox) {
-            const items = await storageAPI.sync.get(this.KEYS.BANKS);
-            return items[this.KEYS.BANKS] || [];
+            const items = await storageAPI.sync.get(this.KEYS.ACCOUNTS);
+            return items[this.KEYS.ACCOUNTS] || [];
         } else {
             return new Promise((resolve) => {
-                storageAPI.sync.get(this.KEYS.BANKS, (items) => {
-                    resolve(items[this.KEYS.BANKS] || []);
+                storageAPI.sync.get(this.KEYS.ACCOUNTS, (items) => {
+                    resolve(items[this.KEYS.ACCOUNTS] || []);
                 });
             });
         }
     },
 
     /**
-     * Salva bancos
-     * @param {Array} banks Array de objetos { id, name }
+     * Salva contas
+     * @param {Array} accounts Array de objetos { id, name }
      */
-    async setBanks(banks) {
+    async setAccounts(accounts) {
         if (isFirefox) {
-            await storageAPI.sync.set({ [this.KEYS.BANKS]: banks });
+            await storageAPI.sync.set({ [this.KEYS.ACCOUNTS]: accounts });
         } else {
             return new Promise((resolve) => {
-                storageAPI.sync.set({ [this.KEYS.BANKS]: banks }, resolve);
+                storageAPI.sync.set({ [this.KEYS.ACCOUNTS]: accounts }, resolve);
             });
         }
     },
 
     /**
-     * Adiciona um novo banco
-     * @param {Object} bank { name }
+     * Adiciona uma nova conta
+     * @param {Object} account { name }
      */
-    async addBank(bank) {
-        const banks = await this.getBanks();
-        const maxId = banks.length > 0 ? Math.max(...banks.map(b => b.id)) : 0;
-        banks.push({
+    async addAccount(account) {
+        const accounts = await this.getAccounts();
+        const maxId = accounts.length > 0 ? Math.max(...accounts.map(a => a.id)) : 0;
+        accounts.push({
             id: maxId + 1,
-            name: bank.name
+            name: account.name
         });
-        await this.setBanks(banks);
+        await this.setAccounts(accounts);
     },
 
     /**
-     * Remove um banco
-     * @param {number} bankId ID do banco
+     * Remove uma conta
+     * @param {number} accountId ID da conta
      */
-    async removeBank(bankId) {
-        const banks = await this.getBanks();
-        const filtered = banks.filter(b => b.id !== bankId);
-        await this.setBanks(filtered);
+    async removeAccount(accountId) {
+        const accounts = await this.getAccounts();
+        const filtered = accounts.filter(a => a.id !== accountId);
+        await this.setAccounts(filtered);
     },
 
     /**
-     * Atualiza um banco
-     * @param {number} bankId ID do banco
+     * Atualiza uma conta
+     * @param {number} accountId ID da conta
      * @param {Object} updates Campos a atualizar
      */
-    async updateBank(bankId, updates) {
-        const banks = await this.getBanks();
-        const index = banks.findIndex(b => b.id === bankId);
+    async updateAccount(accountId, updates) {
+        const accounts = await this.getAccounts();
+        const index = accounts.findIndex(a => a.id === accountId);
         if (index >= 0) {
-            banks[index] = { ...banks[index], ...updates };
-            await this.setBanks(banks);
+            accounts[index] = { ...accounts[index], ...updates };
+            await this.setAccounts(accounts);
         }
     },
 
     /**
-     * Obtém banco por nome
-     * @param {string} name Nome do banco
-     * @returns {Promise<Object|null>} Objeto banco ou null
+     * Obtém conta por nome
+     * @param {string} name Nome da conta
+     * @returns {Promise<Object|null>} Objeto conta ou null
      */
-    async getBankByName(name) {
-        const banks = await this.getBanks();
-        return banks.find(b => b.name === name) || null;
+    async getAccountByName(name) {
+        const accounts = await this.getAccounts();
+        return accounts.find(a => a.name === name) || null;
     },
 
     /**
-     * Obtém regras aplicáveis a um banco específico
-     * Inclui regras do banco alvo + regras do banco coringa (id: 0)
-     * @param {string} bankName Nome do banco
+     * Obtém regras aplicáveis a uma conta específica
+     * Inclui regras da conta alvo + regras da conta coringa (id: 0)
+     * @param {string} accountName Nome da conta
      * @returns {Promise<Array>} Array de regras aplicáveis
      */
-    async getRulesForBank(bankName) {
+    async getRulesForAccount(accountName) {
         const allRules = await this.getPayeeRules();
-        const bank = await this.getBankByName(bankName);
+        const account = await this.getAccountByName(accountName);
 
-        if (!bank) return [];
+        if (!account) return [];
 
-        // Retorna regras do banco específico + regras do banco coringa (id: 0)
-        return allRules.filter(r => r.bankId === bank.id || r.bankId === 0);
+        // Retorna regras da conta específica + regras da conta coringa (id: 0)
+        return allRules.filter(r => r.accountId === account.id || r.accountId === 0);
     },
 
     /**

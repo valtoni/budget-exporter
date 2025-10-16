@@ -62,18 +62,37 @@ function extractDomainName(parts) {
 }
 
 /**
- * Detecta o banco a partir de uma URL
+ * Detecta a conta (banco + tipo) a partir de uma URL
  * @param {string} url - URL completa ou hostname
- * @returns {string|null} - Nome canônico do banco ou null
+ * @returns {string|null} - Nome da conta (ex: 'desjardins-bankaccount') ou null
  */
 function detectBank(url) {
     try {
-        const hostname = new URL(url).hostname.replace('www.', '');
-        // Extrai o domínio principal (ex: desjardins.com, koho.ca, rbc.co.uk)
-        // Estratégia: pega as últimas 2 partes para .com/.ca ou últimas 3 para .co.uk/.com.br
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname.replace('www.', '');
+        const pathname = urlObj.pathname;
+
+        // Extrai o domínio principal
         const parts = hostname.split('.');
         let normalized = extractDomainName(parts);
-        return BANK_ALIASES[normalized] || null;
+        const bankName = BANK_ALIASES[normalized];
+
+        if (!bankName) return null;
+
+        // Detecção específica por banco e URL
+        if (bankName === 'desjardins') {
+            if (pathname.includes('/comptes/courant/')) {
+                return 'desjardins-bankaccount';
+            }
+            if (pathname.includes('/sommaire-perso/sommaire/sommaire-spa/CC/')) {
+                return 'desjardins-creditcard';
+            }
+            // Fallback para desjardins genérico
+            return 'desjardins-bankaccount';
+        }
+
+        // Para outros bancos, mantém o nome original
+        return bankName;
     } catch (e) {
         // Se não for URL completa, tenta extrair do hostname direto
         const parts = String(url).replace('www.', '').split('.');
@@ -83,22 +102,30 @@ function detectBank(url) {
 }
 
 /**
- * Carrega dinamicamente o módulo do banco
- * @param {string} bankName - Nome canônico do banco
- * @returns {Promise<Object>} - Módulo do banco com selectors e toCsv
+ * Carrega dinamicamente o módulo da conta
+ * @param {string} accountName - Nome da conta (ex: 'desjardins-bankaccount', 'koho')
+ * @returns {Promise<Object>} - Módulo da conta com selectors e toCsv
  */
-async function loadBankModule(bankName) {
-    if (!bankName) {
-        throw new Error('Nome do banco não informado');
+async function loadBankModule(accountName) {
+    if (!accountName) {
+        throw new Error('Nome da conta não informado');
     }
 
-    const modulePath = chrome.runtime.getURL(`bank-${bankName}.js`);
+    // Tenta carregar com o nome específico primeiro (ex: desjardins-bankaccount.js)
+    let modulePath = chrome.runtime.getURL(`${accountName}.js`);
 
     try {
         const module = await import(modulePath);
         return module;
     } catch (error) {
-        throw new Error(`Módulo do banco '${bankName}' não encontrado: ${modulePath}`);
+        // Fallback: tenta formato antigo bank-{name}.js
+        modulePath = chrome.runtime.getURL(`bank-${accountName}.js`);
+        try {
+            const module = await import(modulePath);
+            return module;
+        } catch (error2) {
+            throw new Error(`Módulo da conta '${accountName}' não encontrado`);
+        }
     }
 }
 

@@ -31,7 +31,7 @@
                         <a class="nav-link" href="#" id="categories-nav">Categorias</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" id="banks-nav">Bancos</a>
+                        <a class="nav-link" href="#" id="accounts-nav">Contas</a>
                     </li>
                 </ul>
 
@@ -87,14 +87,14 @@
                     <form id="add-rule-form">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="rule-bank" class="form-label">Banco</label>
+                                <label for="rule-account" class="form-label">Conta</label>
                                 <div class="dropdown">
                                     <div class="input-group">
-                                        <input type="text" class="form-control" id="rule-bank" placeholder="Selecione ou pesquise um banco" required autocomplete="off" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <input type="text" class="form-control" id="rule-account" placeholder="Selecione ou pesquise uma conta" required autocomplete="off" data-bs-toggle="dropdown" aria-expanded="false">
                                         <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                             <span class="visually-hidden">Toggle Dropdown</span>
                                         </button>
-                                        <ul class="dropdown-menu w-100" id="bank-dropdown"></ul>
+                                        <ul class="dropdown-menu w-100" id="account-dropdown"></ul>
                                     </div>
                                 </div>
                             </div>
@@ -169,18 +169,18 @@
                     <div class="row g-2" id="categories-list"></div>
                 </div>
 
-                <!-- Tab: Bancos -->
-                <div class="tab-pane fade" id="tab-banks" role="tabpanel">
-                    <h5 class="mb-3">Gerenciar Bancos</h5>
+                <!-- Tab: Contas -->
+                <div class="tab-pane fade" id="tab-accounts" role="tabpanel">
+                    <h5 class="mb-3">Gerenciar Contas</h5>
 
-                    <form id="add-bank-form" class="mb-3">
+                    <form id="add-account-form" class="mb-3">
                         <div class="input-group">
-                            <input type="text" class="form-control" id="bank-name" placeholder="Nome do banco" required>
+                            <input type="text" class="form-control" id="account-name" placeholder="Nome da conta (ex: Desjardins - Credit Card)" required>
                             <button type="submit" class="btn btn-success">Adicionar</button>
                         </div>
                     </form>
 
-                    <div class="row g-2" id="banks-list"></div>
+                    <div class="row g-2" id="accounts-list"></div>
                 </div>
             </div>
         </div>

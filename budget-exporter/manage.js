@@ -6,7 +6,7 @@ let editingRuleId = null;
 // Inicialização
 document.addEventListener('DOMContentLoaded', async () => {
     await StorageManager.init();
-    await loadBanks();
+    await loadAccounts();
     await loadCategories();
     await loadRules();
     setupEventListeners();
@@ -25,9 +25,9 @@ function setupEventListeners() {
         showTab('tab-categories', 'categories-nav');
     });
 
-    document.getElementById('banks-nav').addEventListener('click', (e) => {
+    document.getElementById('accounts-nav').addEventListener('click', (e) => {
         e.preventDefault();
-        showTab('tab-banks', 'banks-nav');
+        showTab('tab-accounts', 'accounts-nav');
     });
 
     // Form de adicionar regra
@@ -42,10 +42,10 @@ function setupEventListeners() {
         await addCategory();
     });
 
-    // Form de adicionar banco
-    document.getElementById('add-bank-form').addEventListener('submit', async (e) => {
+    // Form de adicionar conta
+    document.getElementById('add-account-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        await addBank();
+        await addAccount();
     });
 
     // Toggle campo de memo quando regex é marcado
@@ -103,26 +103,26 @@ function setupEventListeners() {
         }
     });
 
-    // Filtro de banco
-    const bankInput = document.getElementById('rule-bank');
-    const bankDropdown = document.getElementById('bank-dropdown');
-    const bankButton = bankInput.nextElementSibling;
+    // Filtro de conta
+    const accountInput = document.getElementById('rule-account');
+    const accountDropdown = document.getElementById('account-dropdown');
+    const accountButton = accountInput.nextElementSibling;
 
-    bankInput.addEventListener('input', (e) => {
-        filterDropdown(bankInput.value, bankDropdown);
+    accountInput.addEventListener('input', (e) => {
+        filterDropdown(accountInput.value, accountDropdown);
     });
 
-    bankInput.addEventListener('focus', () => {
-        filterDropdown(bankInput.value, bankDropdown);
+    accountInput.addEventListener('focus', () => {
+        filterDropdown(accountInput.value, accountDropdown);
     });
 
-    bankButton.addEventListener('click', (e) => {
+    accountButton.addEventListener('click', (e) => {
         e.stopPropagation();
-        filterDropdown(bankInput.value, bankDropdown);
+        filterDropdown(accountInput.value, accountDropdown);
     });
 
     // Previne fechar dropdown ao clicar no input
-    bankInput.addEventListener('click', (e) => {
+    accountInput.addEventListener('click', (e) => {
         e.stopPropagation();
     });
 
@@ -167,49 +167,48 @@ function showTab(tabId, navId) {
     document.getElementById(navId).classList.add('active');
 }
 
-// Carrega bancos no dropdown e na lista
-async function loadBanks() {
-    const banks = await StorageManager.getBanks();
+// Carrega contas no dropdown e na lista
+async function loadAccounts() {
+    const accounts = await StorageManager.getAccounts();
 
-    // Popula dropdown de bancos
-    const dropdown = document.getElementById('bank-dropdown');
+    // Popula dropdown de contas
+    const dropdown = document.getElementById('account-dropdown');
     dropdown.innerHTML = '';
-    banks.forEach(bank => {
+    accounts.forEach(account => {
         const li = document.createElement('li');
         const a = document.createElement('a');
         a.className = 'dropdown-item';
         a.href = '#';
 
-        // Formata nome: 'all' vira 'Todos os bancos', outros são capitalizados
-        if (bank.id === 0) {
-            a.textContent = 'Todos os bancos';
-            a.setAttribute('data-bank-name', 'Todos os bancos');
+        // Formata nome: 'all' vira 'Todas as contas', outros mantém formato
+        if (account.id === 0) {
+            a.textContent = 'Todas as contas';
+            a.setAttribute('data-account-name', 'Todas as contas');
         } else {
-            const displayName = bank.name.charAt(0).toUpperCase() + bank.name.slice(1);
-            a.textContent = displayName;
-            a.setAttribute('data-bank-name', displayName);
+            a.textContent = account.name;
+            a.setAttribute('data-account-name', account.name);
         }
 
-        a.setAttribute('data-bank-id', bank.id);
+        a.setAttribute('data-account-id', account.id);
         a.addEventListener('click', (e) => {
             e.preventDefault();
-            document.getElementById('rule-bank').value = a.getAttribute('data-bank-name');
+            document.getElementById('rule-account').value = a.getAttribute('data-account-name');
         });
 
         li.appendChild(a);
         dropdown.appendChild(li);
     });
 
-    // Popula lista de bancos
-    const list = document.getElementById('banks-list');
+    // Popula lista de contas
+    const list = document.getElementById('accounts-list');
     list.innerHTML = '';
 
-    if (banks.length === 0) {
-        list.innerHTML = '<div class="col-12 text-center text-muted py-4">Nenhum banco cadastrado</div>';
+    if (accounts.length === 0) {
+        list.innerHTML = '<div class="col-12 text-center text-muted py-4">Nenhuma conta cadastrada</div>';
         return;
     }
 
-    banks.forEach(bank => {
+    accounts.forEach(account => {
         const col = document.createElement('div');
         col.className = 'col-md-4 col-sm-6';
 
@@ -220,18 +219,18 @@ async function loadBanks() {
         cardBody.className = 'card-body d-flex justify-content-between align-items-center p-2';
 
         const span = document.createElement('span');
-        if (bank.id === 0) {
-            span.textContent = 'Todos os bancos (coringa)';
+        if (account.id === 0) {
+            span.textContent = 'Todas as contas (coringa)';
             span.className = 'fw-bold';
         } else {
-            span.textContent = bank.name;
+            span.textContent = account.name;
         }
 
         const button = document.createElement('button');
         button.className = 'btn btn-sm btn-danger';
         button.textContent = 'Remover';
-        button.onclick = () => removeBank(bank.id);
-        if (bank.id === 0) {
+        button.onclick = () => removeAccount(account.id);
+        if (account.id === 0) {
             button.disabled = true;
         }
 
@@ -333,49 +332,49 @@ async function removeCategory(name) {
     await loadCategories();
 }
 
-// Adiciona banco
-async function addBank() {
-    const input = document.getElementById('bank-name');
+// Adiciona conta
+async function addAccount() {
+    const input = document.getElementById('account-name');
     const name = input.value.trim().toLowerCase();
 
     if (!name) return;
 
-    const banks = await StorageManager.getBanks();
+    const accounts = await StorageManager.getAccounts();
 
-    if (banks.find(b => b.name === name)) {
-        alert('Banco já existe!');
+    if (accounts.find(a => a.name === name)) {
+        alert('Conta já existe!');
         return;
     }
 
-    await StorageManager.addBank({ name });
+    await StorageManager.addAccount({ name });
 
     input.value = '';
-    await loadBanks();
+    await loadAccounts();
 }
 
-// Remove banco
-async function removeBank(bankId) {
-    const banks = await StorageManager.getBanks();
-    const bank = banks.find(b => b.id === bankId);
+// Remove conta
+async function removeAccount(accountId) {
+    const accounts = await StorageManager.getAccounts();
+    const account = accounts.find(a => a.id === accountId);
 
-    if (!confirm(`Remover banco "${bank.name}"?`)) return;
+    if (!confirm(`Remover conta "${account.name}"?`)) return;
 
-    await StorageManager.removeBank(bankId);
-    await loadBanks();
+    await StorageManager.removeAccount(accountId);
+    await loadAccounts();
 }
 
 // Carrega regras
 async function loadRules() {
     const rules = await StorageManager.getPayeeRules();
-    const banks = await StorageManager.getBanks();
-    allRulesData = { rules, banks };
+    const accounts = await StorageManager.getAccounts();
+    allRulesData = { rules, accounts };
 
     renderRulesPage(currentPage);
 }
 
 // Renderiza página de regras
 function renderRulesPage(page) {
-    const { rules, banks } = allRulesData;
+    const { rules, accounts } = allRulesData;
     const list = document.getElementById('rules-list');
 
     list.innerHTML = '';
@@ -400,7 +399,7 @@ function renderRulesPage(page) {
     thead.className = 'table-light';
     thead.innerHTML = `
         <tr>
-            <th class="col-width-bank">Banco</th>
+            <th class="col-width-account">Conta</th>
             <th class="col-width-pattern">Padrão</th>
             <th class="col-width-replacement">Substituição</th>
             <th class="col-width-category">Categoria</th>
@@ -419,19 +418,19 @@ function renderRulesPage(page) {
             row.className = 'table-secondary opacity-50';
         }
 
-        // Coluna Banco
-        const bankCell = document.createElement('td');
-        const bank = banks.find(b => b.id === rule.bankId);
-        if (bank) {
-            if (bank.id === 0) {
-                bankCell.textContent = 'Todos';
+        // Coluna Conta
+        const accountCell = document.createElement('td');
+        const account = accounts.find(a => a.id === rule.accountId);
+        if (account) {
+            if (account.id === 0) {
+                accountCell.textContent = 'Todas';
             } else {
-                bankCell.textContent = bank.name.charAt(0).toUpperCase() + bank.name.slice(1);
+                accountCell.textContent = account.name.charAt(0).toUpperCase() + account.name.slice(1);
             }
         } else {
-            bankCell.innerHTML = '<span class="text-muted fst-italic">-</span>';
+            accountCell.innerHTML = '<span class="text-muted fst-italic">-</span>';
         }
-        row.appendChild(bankCell);
+        row.appendChild(accountCell);
 
         // Coluna Padrão
         const patternCell = document.createElement('td');
@@ -575,32 +574,32 @@ function renderRulesPage(page) {
 
 // Adiciona ou modifica regra
 async function addRule() {
-    const bankInput = document.getElementById('rule-bank').value.trim();
+    const accountInput = document.getElementById('rule-account').value.trim();
     const pattern = document.getElementById('rule-pattern').value.trim();
     const replacement = document.getElementById('rule-replacement').value.trim();
     const category = document.getElementById('rule-category').value.trim();
     const isRegex = document.getElementById('rule-regex').checked;
     const memoTemplate = document.getElementById('rule-memo').value.trim();
 
-    // Valida se um banco foi selecionado
-    if (!bankInput) {
-        alert('Banco é obrigatório!');
+    // Valida se uma conta foi selecionada
+    if (!accountInput) {
+        alert('Conta é obrigatória!');
         return;
     }
 
-    // Busca o ID do banco pelo nome
-    const banks = await StorageManager.getBanks();
-    let bankId;
+    // Busca o ID da conta pelo nome
+    const accounts = await StorageManager.getAccounts();
+    let accountId;
 
-    if (bankInput === 'Todos os bancos') {
-        bankId = 0;
+    if (accountInput === 'Todas as contas') {
+        accountId = 0;
     } else {
-        const bank = banks.find(b => b.name.toLowerCase() === bankInput.toLowerCase());
-        if (!bank) {
-            alert('Banco não encontrado!');
+        const account = accounts.find(a => a.name.toLowerCase() === accountInput.toLowerCase());
+        if (!account) {
+            alert('Conta não encontrada!');
             return;
         }
-        bankId = bank.id;
+        accountId = account.id;
     }
 
     if (!pattern) {
@@ -626,7 +625,7 @@ async function addRule() {
         if (ruleIndex !== -1) {
             rules[ruleIndex] = {
                 ...rules[ruleIndex],
-                bankId,
+                accountId,
                 pattern,
                 replacement,
                 category,
@@ -638,7 +637,7 @@ async function addRule() {
     } else {
         // Modo adicionar
         await StorageManager.addPayeeRule({
-            bankId,
+            accountId,
             pattern,
             replacement,
             category,
@@ -656,20 +655,20 @@ async function addRule() {
 async function editRule(rule) {
     editingRuleId = rule.id;
 
-    // Busca o nome do banco pelo ID
-    const banks = await StorageManager.getBanks();
-    const bank = banks.find(b => b.id === rule.bankId);
-    let bankName = '';
-    if (bank) {
-        if (bank.id === 0) {
-            bankName = 'Todos os bancos';
+    // Busca o nome da conta pelo ID
+    const accounts = await StorageManager.getAccounts();
+    const account = accounts.find(a => a.id === rule.accountId);
+    let accountName = '';
+    if (account) {
+        if (account.id === 0) {
+            accountName = 'Todas as contas';
         } else {
-            bankName = bank.name.charAt(0).toUpperCase() + bank.name.slice(1);
+            accountName = account.name.charAt(0).toUpperCase() + account.name.slice(1);
         }
     }
 
     // Preenche os campos
-    document.getElementById('rule-bank').value = bankName;
+    document.getElementById('rule-account').value = accountName;
     document.getElementById('rule-pattern').value = rule.pattern || '';
     document.getElementById('rule-replacement').value = rule.replacement || '';
     document.getElementById('rule-category').value = rule.category || '';
@@ -694,7 +693,7 @@ function cancelEdit() {
     editingRuleId = null;
 
     // Limpa form
-    document.getElementById('rule-bank').value = '';
+    document.getElementById('rule-account').value = '';
     document.getElementById('rule-pattern').value = '';
     document.getElementById('rule-replacement').value = '';
     document.getElementById('rule-category').value = '';

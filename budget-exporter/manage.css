@@ -190,7 +190,7 @@ body {
 }
 
 /* Table column widths */
-.col-width-bank { width: 15%; }
+.col-width-account { width: 15%; }
 .col-width-pattern { width: 25%; }
 .col-width-replacement { width: 20%; }
 .col-width-category { width: 15%; }
