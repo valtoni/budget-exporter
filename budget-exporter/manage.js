@@ -58,6 +58,50 @@ function setupEventListeners() {
     document.getElementById('cancel-btn').addEventListener('click', () => {
         cancelEdit();
     });
+
+    // Search functionality
+    const searchButton = document.querySelector('.DocSearch-Button');
+    const searchInput = document.getElementById('search-input');
+
+    searchButton.addEventListener('click', () => {
+        toggleSearch(searchButton, searchInput);
+    });
+
+    // Ctrl+K shortcut
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            toggleSearch(searchButton, searchInput);
+        }
+    });
+
+    // Search input event
+    searchInput.addEventListener('input', (e) => {
+        currentSearchTerm = e.target.value.toLowerCase();
+        const length = currentSearchTerm.length;
+
+        // Validação visual
+        if (length === 0 || length >= 3) {
+            searchInput.classList.remove('search-invalid');
+        } else {
+            searchInput.classList.add('search-invalid');
+        }
+
+        // Filtrar apenas se tiver 3+ caracteres
+        if (length >= 3) {
+            filterRules(currentSearchTerm);
+        } else if (length === 0) {
+            filterRules(''); // Mostrar tudo
+        }
+    });
+
+    searchInput.addEventListener('blur', () => {
+        if (!currentSearchTerm) {
+            setTimeout(() => {
+                toggleSearch(searchButton, searchInput);
+            }, 200);
+        }
+    });
 }
 
 // Função para trocar de tab manualmente
@@ -512,4 +556,42 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Search functionality
+let currentSearchTerm = '';
+
+function toggleSearch(button, input) {
+    if (input.classList.contains('d-none')) {
+        button.classList.add('d-none');
+        input.classList.remove('d-none');
+        input.focus();
+    } else {
+        button.classList.remove('d-none');
+        input.classList.add('d-none');
+        currentSearchTerm = '';
+        input.value = '';
+        input.classList.remove('search-invalid');
+        filterRules('');
+    }
+}
+
+function filterRules(searchTerm) {
+    const rows = document.querySelectorAll('#rules-list tbody tr');
+
+    if (!searchTerm) {
+        rows.forEach(row => row.style.display = '');
+        return;
+    }
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const text = Array.from(cells).map(cell => cell.textContent.toLowerCase()).join(' ');
+
+        if (text.includes(searchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
 }
