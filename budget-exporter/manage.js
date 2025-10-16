@@ -67,9 +67,9 @@ function setupEventListeners() {
         toggleSearch(searchButton, searchInput);
     });
 
-    // Ctrl+K shortcut
+    // Ctrl+F shortcut
     document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
             e.preventDefault();
             toggleSearch(searchButton, searchInput);
         }
