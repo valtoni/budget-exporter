@@ -18,18 +18,7 @@
     "show_matches": [
       "*://*.desjardins.com/comptes/courant/*",
       "*://*.desjardins.com/sommaire-perso/sommaire/sommaire-spa/CC/*",
-      "*://*.koho.ca/transactions/*",
-      "*://*.banqueinterac.com/*",
-      "*://*.rbcroyalbank.com/*",
-      "*://*.td.com/*",
-      "*://*.scotiabank.com/*",
-      "*://*.bmo.com/*",
-      "*://*.cibc.com/*",
-      "*://*.nbc.ca/*",
-      "*://*.hsbc.ca/*",
-      "*://*.tangerine.ca/*",
-      "*://*.simplii.com/*",
-      "*://*.eqbank.ca/*"
+      "*://*.koho.ca/transactions/*"
     ]
   },
   "background": {
