@@ -22,7 +22,7 @@
     ]
   },
   "background": {
-    "scripts": ["storage-manager.js", "bank-utils.js", "background.js"],
+    "scripts": ["bank-utils.js", "storage-manager.js", "background.js"],
     "persistent": false
   },
   "permissions": [
@@ -47,7 +47,7 @@
         "*://*.desjardins.com/*",
         "*://*.koho.ca/*"
       ],
-      "js": ["storage-manager.js", "bank-utils.js", "content.js"],
+      "js": ["bank-utils.js", "storage-manager.js", "content.js"],
       "run_at": "document_idle"
     }
   ]

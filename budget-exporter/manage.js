@@ -230,8 +230,10 @@ async function loadAccounts() {
         button.className = 'btn btn-sm btn-danger';
         button.textContent = 'Remover';
         button.onclick = () => removeAccount(account.id);
-        if (account.id === 0) {
+        // Desabilita remoção das 4 contas pré-definidas (IDs 0, 1, 2, 3)
+        if (account.id >= 0 && account.id <= 3) {
             button.disabled = true;
+            button.title = 'Conta pré-definida não pode ser removida';
         }
 
         cardBody.appendChild(span);
@@ -335,13 +337,13 @@ async function removeCategory(name) {
 // Adiciona conta
 async function addAccount() {
     const input = document.getElementById('account-name');
-    const name = input.value.trim().toLowerCase();
+    const name = input.value.trim();
 
     if (!name) return;
 
     const accounts = await StorageManager.getAccounts();
 
-    if (accounts.find(a => a.name === name)) {
+    if (accounts.find(a => a.name.toLowerCase() === name.toLowerCase())) {
         alert('Conta já existe!');
         return;
     }

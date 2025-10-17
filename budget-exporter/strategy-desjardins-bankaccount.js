@@ -12,36 +12,6 @@ export const selectors = {
     }
 };
 
-// Converte data francesa para formato ISO (YYYY-MM-DD)
-function frDateToISO(frenchDateStr) {
-    const mois = {
-        'janvier': '01', 'janv': '01', 'jan': '01',
-        'février': '02', 'fév': '02', 'fev': '02',
-        'mars': '03',
-        'avril': '04', 'avr': '04',
-        'mai': '05',
-        'juin': '06', 'jun': '06',
-        'juillet': '07', 'juil': '07', 'jul': '07',
-        'août': '08', 'aout': '08',
-        'septembre': '09', 'sept': '09', 'sep': '09',
-        'octobre': '10', 'oct': '10',
-        'novembre': '11', 'nov': '11',
-        'décembre': '12', 'déc': '12', 'dec': '12',
-    };
-
-    const [dayStr, rawMonth] = frenchDateStr.trim().toLowerCase().split(/\s+/);
-    const day = dayStr.padStart(2, '0');
-    const month = mois[rawMonth] || '??';
-    const year = new Date().getFullYear();
-
-    if (month === '??') {
-        console.warn(`Mois inconnu: ${rawMonth}`);
-        return frenchDateStr; // retorna original se não conseguir converter
-    }
-
-    return `${year}-${month}-${day}`;
-}
-
 // Extrai descrição de diferentes formatos do DOM do Desjardins
 function extractDescription(td) {
     if (!td) return '';
@@ -77,117 +47,16 @@ function extractDescription(td) {
     return td.innerText.trim();
 }
 
-// Função auxiliar síncrona para aplicar regras pré-carregadas
-function applyRulesSync(payee, rules) {
-    for (const rule of rules) {
-        if (!rule.enabled) continue;
-
-        let matched = false;
-        let capturedGroups = null;
-
-        if (rule.isRegex) {
-            try {
-                const regex = new RegExp(rule.pattern, 'i');
-                const match = payee.match(regex);
-                if (match) {
-                    matched = true;
-                    capturedGroups = match; // Guarda os grupos capturados
-                }
-            } catch (e) {
-                console.warn('Regex inválida:', rule.pattern, e);
-            }
-        } else {
-            matched = payee.toLowerCase().includes(rule.pattern.toLowerCase());
-        }
-
-        if (matched) {
-            let memo = '';
-
-            // Se tiver memoTemplate e grupos capturados, substitui \1, \2, etc.
-            if (rule.memoTemplate && capturedGroups) {
-                memo = rule.memoTemplate;
-                // Substitui \1, \2, \3, etc. pelos grupos capturados
-                for (let i = 1; i < capturedGroups.length; i++) {
-                    memo = memo.replace(new RegExp(`\\\\${i}`, 'g'), capturedGroups[i] || '');
-                }
-            }
-
-            return {
-                payee: rule.replacement || payee,
-                category: rule.category || '',
-                memo: memo,
-                matched: true
-            };
-        }
-    }
-
-    return {
-        payee: payee,
-        category: '',
-        memo: '',
-        matched: false
-    };
-}
 
 // Função de conversão para CSV no formato YNAB
 // Aplica regras de matching automaticamente
 export async function toCsv(rows = []) {
-    const header = ["Date", "Payee", "Category", "Memo", "Outflow", "Inflow"];
-
-    // Pré-carrega regras UMA VEZ (async) antes do loop
-    const hasStorage = typeof window !== 'undefined' && window.StorageManager;
-    let rules = [];
-
-    if (hasStorage) {
-        try {
-            // Obtém regras do banco 'desjardins' + regras do banco coringa (id: 0)
-            rules = await window.StorageManager.getRulesForBank('desjardins');
-        } catch (e) {
-            console.warn('Erro ao carregar regras:', e);
-        }
-    }
-
-    // Agora o map é SÍNCRONO (sem async/await)
-    const body = rows.map((r) => {
-        // Parse da data francesa para ISO
-        let date = r.date;
-        try {
-            date = frDateToISO(r.date);
-        } catch (e) {
-            console.warn('Erro ao converter data:', r.date, e);
-        }
-
-        let payee = r.payee || '';
-        let category = '';
-        let memo = '';
-
-        // Aplica regras síncronas (já carregadas)
-        if (rules.length > 0) {
-            const result = applyRulesSync(payee, rules);
-            if (result.matched) {
-                payee = result.payee;
-                category = result.category;
-                memo = result.memo || `Original: ${r.payee}`;
-            }
-        }
-
-        // Processa o valor: remove espaços, $, e normaliza decimais
-        const amountRaw = r.amount || '';
-        const amount = amountRaw
-            .replace(/\s/g, '')
-            .replace('$', '')
-            .replace(/\./g, '')
-            .replace(',', '.');
-
-        const isInflow = amount.startsWith('+');
-        const inflow = isInflow ? amount.replace(/[^\d.]/g, '') : '';
-        const outflow = !isInflow ? amount.replace(/[^\d.]/g, '') : '';
-
-        return [date, payee, category, memo, outflow, inflow]
-            .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
-    });
-
-    return [header.join(","), ...body].join("\n");
+    return window.BankUtils.toCsv(
+        rows,
+        'desjardins-bankaccount',
+        window.BankUtils.frDateToISO,
+        window.BankUtils.parseDesjardinsAmount
+    );
 }
 
 // Função customizada para extrair transações do DOM do Desjardins

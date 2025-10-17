@@ -43,6 +43,55 @@ const BANK_ALIASES = {
     eq: 'eqbank',
 };
 
+// Configuração centralizada de contas
+// Esta é a única fonte de verdade para IDs, nomes e identificadores de contas
+const ACCOUNTS = {
+    WILDCARD: {
+        id: 0,
+        accountId: 'all',
+        name: 'all',
+        displayName: 'Todas as contas'
+    },
+    DESJARDINS_CREDITCARD: {
+        id: 1,
+        accountId: 'desjardins-creditcard',
+        name: 'Desjardins - Credit Card',
+        displayName: 'Desjardins - Credit Card'
+    },
+    DESJARDINS_BANKACCOUNT: {
+        id: 2,
+        accountId: 'desjardins-bankaccount',
+        name: 'Desjardins - Bank Account',
+        displayName: 'Desjardins - Bank Account'
+    },
+    KOHO_BANKACCOUNT: {
+        id: 3,
+        accountId: 'koho-bankaccount',
+        name: 'Koho - Prepaid Card',
+        displayName: 'Koho - Prepaid Card'
+    }
+};
+
+// Helper: Converte accountId (string) para configuração completa
+function getAccountByAccountId(accountId) {
+    return Object.values(ACCOUNTS).find(acc => acc.accountId === accountId) || null;
+}
+
+// Helper: Converte ID numérico para configuração completa
+function getAccountById(id) {
+    return Object.values(ACCOUNTS).find(acc => acc.id === id) || null;
+}
+
+// Helper: Converte nome para configuração completa
+function getAccountByName(name) {
+    return Object.values(ACCOUNTS).find(acc => acc.name === name) || null;
+}
+
+// Helper: Retorna array de todas as contas (exceto wildcard)
+function getAllAccounts() {
+    return Object.values(ACCOUNTS).filter(acc => acc.id !== 0);
+}
+
 
 function extractDomainName(parts) {
     let domainName;
@@ -130,5 +179,259 @@ async function loadBankModule(accountName) {
     }
 }
 
+/**
+ * Converte data francesa para formato ISO (YYYY-MM-DD)
+ * @param {string} frenchDateStr - Data em francês (ex: "15 janvier")
+ * @returns {string} - Data no formato ISO (YYYY-MM-DD)
+ */
+function frDateToISO(frenchDateStr) {
+    const mois = {
+        'janvier': '01', 'janv': '01', 'jan': '01',
+        'février': '02', 'fév': '02', 'fev': '02',
+        'mars': '03',
+        'avril': '04', 'avr': '04',
+        'mai': '05',
+        'juin': '06', 'jun': '06',
+        'juillet': '07', 'juil': '07', 'jul': '07',
+        'août': '08', 'aout': '08',
+        'septembre': '09', 'sept': '09', 'sep': '09',
+        'octobre': '10', 'oct': '10',
+        'novembre': '11', 'nov': '11',
+        'décembre': '12', 'déc': '12', 'dec': '12',
+    };
+
+    const [dayStr, rawMonth] = frenchDateStr.trim().toLowerCase().split(/\s+/);
+    const day = dayStr.padStart(2, '0');
+    const month = mois[rawMonth] || '??';
+    const year = new Date().getFullYear();
+
+    if (month === '??') {
+        console.warn(`Mois inconnu: ${rawMonth}`);
+        return frenchDateStr; // retorna original se não conseguir converter
+    }
+
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * Converte data inglesa para formato ISO (YYYY-MM-DD)
+ * @param {string} dateStr - Data em inglês (ex: "October 11, 2025 • 8:22 PM • Entertainment")
+ * @returns {string} - Data no formato ISO (YYYY-MM-DD)
+ */
+function enDateToISO(dateStr) {
+    const months = {
+        'january': '01', 'jan': '01',
+        'february': '02', 'feb': '02',
+        'march': '03', 'mar': '03',
+        'april': '04', 'apr': '04',
+        'may': '05',
+        'june': '06', 'jun': '06',
+        'july': '07', 'jul': '07',
+        'august': '08', 'aug': '08',
+        'september': '09', 'sep': '09', 'sept': '09',
+        'october': '10', 'oct': '10',
+        'november': '11', 'nov': '11',
+        'december': '12', 'dec': '12'
+    };
+
+    // Formato: "October 11, 2025 • 8:22 PM • Entertainment"
+    // Extrai apenas a parte da data
+    const datePart = dateStr.split('•')[0].trim();
+
+    // Parse: "October 11, 2025"
+    const parts = datePart.split(/[\s,]+/).filter(p => p);
+    if (parts.length !== 3) {
+        console.warn('Formato de data inesperado:', dateStr);
+        return dateStr;
+    }
+
+    const [monthStr, dayStr, yearStr] = parts;
+    const month = months[monthStr.toLowerCase()] || '??';
+    const day = dayStr.padStart(2, '0');
+    const year = yearStr;
+
+    if (month === '??') {
+        console.warn('Mês desconhecido:', monthStr);
+        return dateStr;
+    }
+
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * Aplica regras de matching síncronas (já pré-carregadas)
+ * @param {string} payee - Descrição original da transação
+ * @param {Array} rules - Array de regras pré-carregadas
+ * @returns {Object} - { payee, category, memo, matched }
+ */
+function applyRulesSync(payee, rules) {
+    for (const rule of rules) {
+        if (!rule.enabled) continue;
+
+        let matched = false;
+        let capturedGroups = null;
+
+        if (rule.isRegex) {
+            try {
+                const regex = new RegExp(rule.pattern, 'i');
+                const match = payee.match(regex);
+                if (match) {
+                    matched = true;
+                    capturedGroups = match;
+                }
+            } catch (e) {
+                console.warn('Regex inválida:', rule.pattern, e);
+            }
+        } else {
+            matched = payee.toLowerCase().includes(rule.pattern.toLowerCase());
+        }
+
+        if (matched) {
+            let memo = '';
+
+            // Se tiver memoTemplate e grupos capturados, substitui \1, \2, etc.
+            if (rule.memoTemplate && capturedGroups) {
+                memo = rule.memoTemplate;
+                for (let i = 1; i < capturedGroups.length; i++) {
+                    memo = memo.replace(new RegExp(`\\\\${i}`, 'g'), capturedGroups[i] || '');
+                }
+            }
+
+            return {
+                payee: rule.replacement || payee,
+                category: rule.category || '',
+                memo: memo,
+                matched: true
+            };
+        }
+    }
+
+    return {
+        payee: payee,
+        category: '',
+        memo: '',
+        matched: false
+    };
+}
+
+/**
+ * Função genérica de conversão para CSV no formato YNAB
+ * @param {Array} rows - Array de transações { date, payee, amount }
+ * @param {string} accountId - ID da conta (ex: 'desjardins-bankaccount', 'koho-bankaccount')
+ * @param {Function} dateParser - Função para converter data (ex: frDateToISO, enDateToISO)
+ * @param {Function} amountParser - Função para processar o valor
+ * @returns {Promise<string>} - CSV formatado
+ */
+async function toCsv(rows = [], accountId, dateParser, amountParser) {
+    const header = ["Date", "Payee", "Category", "Memo", "Outflow", "Inflow"];
+
+    // Pré-carrega regras UMA VEZ (async) antes do loop
+    const hasStorage = typeof window !== 'undefined' && window.StorageManager;
+    let rules = [];
+
+    if (hasStorage) {
+        try {
+            // Converte accountId para ID numérico da conta
+            const account = getAccountByAccountId(accountId);
+            if (!account) {
+                console.warn('toCsv: Conta não encontrada para accountId:', accountId);
+                return [header.join(",")].join("\n");
+            }
+
+            console.log('toCsv: accountId =', accountId, '-> account.id =', account.id, ', name =', account.name);
+            rules = await window.StorageManager.getRulesForAccountId(account.id);
+            console.log('toCsv: regras carregadas =', rules.length);
+        } catch (e) {
+            console.warn('Erro ao carregar regras:', e);
+        }
+    }
+
+    // Agora o map é SÍNCRONO (sem async/await)
+    const body = rows.map((r) => {
+        // Parse da data usando função fornecida
+        let date = r.date;
+        try {
+            date = dateParser(r.date);
+        } catch (e) {
+            console.warn('Erro ao converter data:', r.date, e);
+        }
+
+        let payee = r.payee || '';
+        let category = '';
+        let memo = '';
+
+        // Aplica regras síncronas (já carregadas)
+        if (rules.length > 0 && window.BankUtils?.applyRulesSync) {
+            const result = window.BankUtils.applyRulesSync(payee, rules);
+            if (result.matched) {
+                payee = result.payee;
+                category = result.category;
+                memo = result.memo || `Original: ${r.payee}`;
+            }
+        }
+
+        // Parse do valor usando função fornecida
+        const { inflow, outflow } = amountParser(r.amount || '');
+
+        return [date, payee, category, memo, outflow, inflow]
+            .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
+    });
+
+    return [header.join(","), ...body].join("\n");
+}
+
+/**
+ * Parser de valor para formato Desjardins
+ * Remove espaços, $, normaliza decimais (vírgula -> ponto)
+ */
+function parseDesjardinsAmount(amountRaw) {
+    const amount = amountRaw
+        .replace(/\s/g, '')
+        .replace('$', '')
+        .replace(/\./g, '')
+        .replace(',', '.');
+
+    const isInflow = amount.startsWith('+');
+    const inflow = isInflow ? amount.replace(/[^\d.]/g, '') : '';
+    const outflow = !isInflow ? amount.replace(/[^\d.]/g, '') : '';
+
+    return { inflow, outflow };
+}
+
+/**
+ * Parser de valor para formato Koho
+ * Remove espaços, $, +
+ */
+function parseKohoAmount(amountRaw) {
+    const isInflow = amountRaw.includes('+');
+
+    const amount = amountRaw
+        .replace(/\s/g, '')
+        .replace(/\+/g, '')
+        .replace(/\$/g, '');
+
+    const inflow = isInflow ? amount : '';
+    const outflow = !isInflow ? amount : '';
+
+    return { inflow, outflow };
+}
+
 // Exporta para o escopo global (disponível para background.js e content.js)
-window.BankUtils = { detectBank, loadBankModule };
+window.BankUtils = {
+    // Configuração de contas
+    ACCOUNTS,
+    getAccountByAccountId,
+    getAccountById,
+    getAccountByName,
+    getAllAccounts,
+
+    // Funções principais
+    detectBank,
+    loadBankModule,
+    applyRulesSync,
+    frDateToISO,
+    enDateToISO,
+    toCsv,
+    parseDesjardinsAmount,
+    parseKohoAmount
+};

@@ -36,14 +36,12 @@ const StorageManager = {
         }
 
         if (!data.accounts) {
-            // Contas pré-configuradas com IDs fixos para evitar duplicações
-            // ID 0 é reservado para a conta coringa (aplicável a todas as contas)
-            await this.setAccounts([
-                { id: 0, name: 'all' }, // Conta coringa
-                { id: 1, name: 'Desjardins - Credit Card' },
-                { id: 2, name: 'Desjardins - Bank Account' },
-                { id: 3, name: 'Koho - Prepaid Card' }
-            ]);
+            // Contas pré-configuradas a partir de BankUtils.ACCOUNTS
+            const defaultAccounts = Object.values(window.BankUtils.ACCOUNTS).map(acc => ({
+                id: acc.id,
+                name: acc.name
+            }));
+            await this.setAccounts(defaultAccounts);
         }
     },
 
@@ -255,7 +253,17 @@ const StorageManager = {
     },
 
     /**
-     * Obtém regras aplicáveis a uma conta específica
+     * Obtém conta por ID
+     * @param {number} id ID da conta
+     * @returns {Promise<Object|null>} Objeto conta ou null
+     */
+    async getAccountById(id) {
+        const accounts = await this.getAccounts();
+        return accounts.find(a => a.id === id) || null;
+    },
+
+    /**
+     * Obtém regras aplicáveis a uma conta específica (por nome)
      * Inclui regras da conta alvo + regras da conta coringa (id: 0)
      * @param {string} accountName Nome da conta
      * @returns {Promise<Array>} Array de regras aplicáveis
@@ -264,10 +272,26 @@ const StorageManager = {
         const allRules = await this.getPayeeRules();
         const account = await this.getAccountByName(accountName);
 
-        if (!account) return [];
+        if (!account) {
+            console.warn('getRulesForAccount: Conta não encontrada:', accountName);
+            return [];
+        }
 
         // Retorna regras da conta específica + regras da conta coringa (id: 0)
         return allRules.filter(r => r.accountId === account.id || r.accountId === 0);
+    },
+
+    /**
+     * Obtém regras aplicáveis a uma conta específica (por ID numérico)
+     * Inclui regras da conta alvo + regras da conta coringa (id: 0)
+     * @param {number} accountId ID numérico da conta
+     * @returns {Promise<Array>} Array de regras aplicáveis
+     */
+    async getRulesForAccountId(accountId) {
+        const allRules = await this.getPayeeRules();
+
+        // Retorna regras da conta específica + regras da conta coringa (id: 0)
+        return allRules.filter(r => r.accountId === accountId || r.accountId === 0);
     },
 
     /**
