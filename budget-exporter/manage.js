@@ -59,6 +59,46 @@ function setupEventListeners() {
         cancelEdit();
     });
 
+    // Exportar
+    const btnExport = document.getElementById('btn-export');
+    if (btnExport) {
+        btnExport.addEventListener('click', async () => {
+            try {
+                await StorageManager.exportData();
+            } catch (e) {
+                console.error('Falha ao exportar:', e);
+                alert('Falha ao exportar dados: ' + (e.message || e));
+            }
+        });
+    }
+
+    // Importar
+    const btnImport = document.getElementById('btn-import');
+    const importInput = document.getElementById('import-file');
+    if (btnImport && importInput) {
+        btnImport.addEventListener('click', () => importInput.click());
+        importInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            if (!confirm('Importar substituirá regras, categorias e contas atuais. Deseja continuar?')) {
+                e.target.value = '';
+                return;
+            }
+            try {
+                await StorageManager.importData(file);
+                alert('Importação concluída com sucesso.');
+                await loadAccounts();
+                await loadCategories();
+                await loadRules();
+            } catch (err) {
+                console.error('Falha ao importar:', err);
+                alert('Falha ao importar dados: ' + (err.message || err));
+            } finally {
+                e.target.value = '';
+            }
+        });
+    }
+
     // Search functionality
     const searchButton = document.querySelector('.DocSearch-Button');
     const searchInput = document.getElementById('search-input');

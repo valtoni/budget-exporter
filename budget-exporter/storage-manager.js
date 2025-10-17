@@ -93,8 +93,15 @@ const StorageManager = {
         if (isFirefox) {
             await storageAPI.sync.set({ [this.KEYS.PAYEE_RULES]: rules });
         } else {
-            return new Promise((resolve) => {
-                storageAPI.sync.set({ [this.KEYS.PAYEE_RULES]: rules }, resolve);
+            return new Promise((resolve, reject) => {
+                storageAPI.sync.set({ [this.KEYS.PAYEE_RULES]: rules }, () => {
+                    const err = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) ? chrome.runtime.lastError : null;
+                    if (err) {
+                        reject(new Error(err.message || String(err)));
+                    } else {
+                        resolve();
+                    }
+                });
             });
         }
     },
@@ -167,8 +174,15 @@ const StorageManager = {
         if (isFirefox) {
             await storageAPI.sync.set({ [this.KEYS.CATEGORIES]: categories });
         } else {
-            return new Promise((resolve) => {
-                storageAPI.sync.set({ [this.KEYS.CATEGORIES]: categories }, resolve);
+            return new Promise((resolve, reject) => {
+                storageAPI.sync.set({ [this.KEYS.CATEGORIES]: categories }, () => {
+                    const err = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) ? chrome.runtime.lastError : null;
+                    if (err) {
+                        reject(new Error(err.message || String(err)));
+                    } else {
+                        resolve();
+                    }
+                });
             });
         }
     },
@@ -198,8 +212,15 @@ const StorageManager = {
         if (isFirefox) {
             await storageAPI.sync.set({ [this.KEYS.ACCOUNTS]: accounts });
         } else {
-            return new Promise((resolve) => {
-                storageAPI.sync.set({ [this.KEYS.ACCOUNTS]: accounts }, resolve);
+            return new Promise((resolve, reject) => {
+                storageAPI.sync.set({ [this.KEYS.ACCOUNTS]: accounts }, () => {
+                    const err = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) ? chrome.runtime.lastError : null;
+                    if (err) {
+                        reject(new Error(err.message || String(err)));
+                    } else {
+                        resolve();
+                    }
+                });
             });
         }
     },
@@ -333,6 +354,95 @@ const StorageManager = {
             category: '',
             matched: false
         };
+    },
+
+    /**
+     * Exporta todos os dados do storage (sync) para um arquivo JSON baixado no navegador
+     * @param {string} [filename] Nome do arquivo (opcional)
+     */
+    async exportData(filename) {
+        const all = await this.getAll();
+        const data = {
+            meta: {
+                app: 'budget-exporter',
+                version: 1,
+                exportedAt: new Date().toISOString()
+            },
+            data: {
+                [this.KEYS.PAYEE_RULES]: all[this.KEYS.PAYEE_RULES] || [],
+                [this.KEYS.CATEGORIES]: all[this.KEYS.CATEGORIES] || [],
+                [this.KEYS.ACCOUNTS]: all[this.KEYS.ACCOUNTS] || []
+            }
+        };
+
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const ts = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const defaultName = filename || `budget-storage-backup-${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.json`;
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = defaultName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    },
+
+    /**
+     * Importa dados do storage a partir de um File, string JSON ou objeto
+     * Substitui completamente os dados atuais (replace)
+     * @param {File|string|Object} input
+     */
+    async importData(input) {
+        let obj;
+        if (typeof File !== 'undefined' && input instanceof File) {
+            obj = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try { resolve(JSON.parse(reader.result)); } catch (e) { reject(e); }
+                };
+                reader.onerror = () => reject(reader.error);
+                reader.readAsText(input);
+            });
+        } else if (typeof input === 'string') {
+            obj = JSON.parse(input);
+        } else if (typeof input === 'object' && input) {
+            obj = input;
+        } else {
+            throw new Error('Formato de entrada inválido para importação');
+        }
+
+        const payload = obj.data ? obj.data : obj; // permite arquivo cru somente com chaves
+        const rules = Array.isArray(payload[this.KEYS.PAYEE_RULES]) ? payload[this.KEYS.PAYEE_RULES] : [];
+        const categories = Array.isArray(payload[this.KEYS.CATEGORIES]) ? payload[this.KEYS.CATEGORIES] : [];
+        const accounts = Array.isArray(payload[this.KEYS.ACCOUNTS]) ? payload[this.KEYS.ACCOUNTS] : [];
+
+        // Validações simples de tipos de campos esperados em regras/contas
+        const safeRules = rules.map((r) => ({
+            id: typeof r.id === 'number' ? r.id : Date.now(),
+            accountId: typeof r.accountId === 'number' ? r.accountId : (r.accountId == null ? null : Number(r.accountId) || 0),
+            pattern: typeof r.pattern === 'string' ? r.pattern : '',
+            replacement: typeof r.replacement === 'string' ? r.replacement : '',
+            category: typeof r.category === 'string' ? r.category : '',
+            isRegex: !!r.isRegex,
+            memoTemplate: typeof r.memoTemplate === 'string' ? r.memoTemplate : '',
+            enabled: r.enabled !== false
+        }));
+
+        const safeCategories = categories.filter(c => typeof c === 'string');
+
+        const safeAccounts = accounts
+            .map(a => ({ id: Number(a.id) || 0, name: String(a.name || '') }))
+            .filter(a => a.name);
+
+        // Substitui completamente os dados
+        await this.setPayeeRules(safeRules);
+        await this.setCategories(safeCategories);
+        await this.setAccounts(safeAccounts);
     }
 };
 

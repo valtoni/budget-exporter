@@ -56,8 +56,19 @@
                     <input type="text" class="search-input d-none" placeholder="Search" aria-label="Search" id="search-input">
                 </div>
 
-                <!-- Right: Links + Version -->
-                <ul class="navbar-nav ms-auto">
+                <!-- Right: Links + Export/Import + Version -->
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item me-2">
+                        <button class="btn btn-outline-light btn-sm" id="btn-export" title="Exportar dados">
+                            <i class="bi bi-upload me-1"></i>Exportar
+                        </button>
+                    </li>
+                    <li class="nav-item me-2">
+                        <input type="file" id="import-file" accept="application/json" class="d-none" />
+                        <button class="btn btn-outline-light btn-sm" id="btn-import" title="Importar dados">
+                            <i class="bi bi-download me-1"></i>Importar
+                        </button>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="https://github.com/valtoni" target="_blank">
                             <i class="bi bi-github"></i>
