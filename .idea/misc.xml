@@ -2,7 +2,7 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.14 (ofx_exporter)" />
   </component>
-  <component name="ProjectRootManager" version="2" languageLevel="JDK_22" default="true" project-jdk-name="temurin-22" project-jdk-type="JavaSDK">
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_22" default="true">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
 </project>
