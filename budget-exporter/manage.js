@@ -296,11 +296,13 @@ async function loadCategories() {
         const a = document.createElement('a');
         a.className = 'dropdown-item';
         a.href = '#';
-        a.textContent = cat;
+        a.textContent = cat.name;
 
         a.addEventListener('click', (e) => {
             e.preventDefault();
-            document.getElementById('rule-category').value = cat;
+            const input = document.getElementById('rule-category');
+            input.value = cat.name;
+            input.dataset.categoryId = cat.id;
         });
 
         li.appendChild(a);
@@ -327,12 +329,12 @@ async function loadCategories() {
         cardBody.className = 'card-body d-flex justify-content-between align-items-center p-2';
 
         const span = document.createElement('span');
-        span.textContent = cat;
+        span.textContent = cat.name;
 
         const button = document.createElement('button');
         button.className = 'btn btn-sm btn-danger';
         button.textContent = 'Remover';
-        button.onclick = () => removeCategory(cat);
+        button.onclick = () => removeCategory(cat.name);
 
         cardBody.appendChild(span);
         cardBody.appendChild(button);
@@ -351,13 +353,13 @@ async function addCategory() {
 
     const categories = await StorageManager.getCategories();
 
-    if (categories.includes(name)) {
+    if (categories.find(c => c.name.toLowerCase() === name.toLowerCase())) {
         alert('Categoria já existe!');
         return;
     }
 
-    categories.push(name);
-    await StorageManager.setCategories(categories);
+    const updated = categories.concat([{ name }]);
+    await StorageManager.setCategories(updated);
 
     input.value = '';
     await loadCategories();
@@ -368,7 +370,7 @@ async function removeCategory(name) {
     if (!confirm(`Remover categoria "${name}"?`)) return;
 
     const categories = await StorageManager.getCategories();
-    const filtered = categories.filter(c => c !== name);
+    const filtered = categories.filter(c => c.name !== name);
 
     await StorageManager.setCategories(filtered);
     await loadCategories();
@@ -407,9 +409,17 @@ async function removeAccount(accountId) {
 
 // Carrega regras
 async function loadRules() {
-    const rules = await StorageManager.getPayeeRules();
-    const accounts = await StorageManager.getAccounts();
-    allRulesData = { rules, accounts };
+    const [rules, accounts, categories] = await Promise.all([
+        StorageManager.getPayeeRules(),
+        StorageManager.getAccounts(),
+        StorageManager.getCategories()
+    ]);
+    const idToName = new Map(categories.map(c => [c.id, c.name]));
+    const rulesWithNames = rules.map(r => ({
+        ...r,
+        _categoryName: r.categoryId ? (idToName.get(r.categoryId) || '') : (r.category || '')
+    }));
+    allRulesData = { rules: rulesWithNames, accounts };
 
     renderRulesPage(currentPage);
 }
@@ -496,8 +506,8 @@ function renderRulesPage(page) {
 
         // Coluna Categoria
         const categoryCell = document.createElement('td');
-        if (rule.category) {
-            categoryCell.textContent = rule.category;
+        if (rule._categoryName) {
+            categoryCell.textContent = rule._categoryName;
         } else {
             categoryCell.innerHTML = '<span class="text-muted fst-italic">-</span>';
         }
@@ -619,7 +629,9 @@ async function addRule() {
     const accountInput = document.getElementById('rule-account').value.trim();
     const pattern = document.getElementById('rule-pattern').value.trim();
     const replacement = document.getElementById('rule-replacement').value.trim();
-    const category = document.getElementById('rule-category').value.trim();
+    const categoryInputEl = document.getElementById('rule-category');
+    const categoryName = categoryInputEl.value.trim();
+    const selectedCategoryId = categoryInputEl.dataset.categoryId ? String(categoryInputEl.dataset.categoryId) : '';
     const isRegex = document.getElementById('rule-regex').checked;
     const memoTemplate = document.getElementById('rule-memo').value.trim();
 
@@ -659,6 +671,14 @@ async function addRule() {
         }
     }
 
+    // Resolve categoryId
+    let categoryId = selectedCategoryId;
+    if (!categoryId && categoryName) {
+        const cats = await StorageManager.getCategories();
+        const found = cats.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
+        categoryId = found ? found.id : '';
+    }
+
     if (editingRuleId) {
         // Modo edição
         const rules = await StorageManager.getPayeeRules();
@@ -670,7 +690,8 @@ async function addRule() {
                 accountId,
                 pattern,
                 replacement,
-                category,
+                categoryId,
+                category: categoryName,
                 isRegex,
                 memoTemplate: isRegex ? memoTemplate : ''
             };
@@ -682,12 +703,15 @@ async function addRule() {
             accountId,
             pattern,
             replacement,
-            category,
+            categoryId,
+            category: categoryName,
             isRegex,
             memoTemplate: isRegex ? memoTemplate : ''
         });
     }
 
+    // Limpa seleção de categoria
+    categoryInputEl.dataset.categoryId = '';
     cancelEdit();
     currentPage = 1; // Volta para primeira página
     await loadRules();
@@ -713,7 +737,9 @@ async function editRule(rule) {
     document.getElementById('rule-account').value = accountName;
     document.getElementById('rule-pattern').value = rule.pattern || '';
     document.getElementById('rule-replacement').value = rule.replacement || '';
-    document.getElementById('rule-category').value = rule.category || '';
+    const catInput = document.getElementById('rule-category');
+    catInput.value = rule._categoryName || '';
+    catInput.dataset.categoryId = rule.categoryId ? String(rule.categoryId) : '';
     document.getElementById('rule-regex').checked = rule.isRegex || false;
     document.getElementById('rule-memo').value = rule.memoTemplate || '';
 
@@ -738,7 +764,9 @@ function cancelEdit() {
     document.getElementById('rule-account').value = '';
     document.getElementById('rule-pattern').value = '';
     document.getElementById('rule-replacement').value = '';
-    document.getElementById('rule-category').value = '';
+    const catInput = document.getElementById('rule-category');
+    catInput.value = '';
+    catInput.dataset.categoryId = '';
     document.getElementById('rule-regex').checked = false;
     document.getElementById('rule-memo').value = '';
     document.getElementById('memo-field').classList.add('d-none');
