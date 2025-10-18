@@ -1,142 +1,202 @@
-# Script de Build para Budget Exporter - Mozilla Add-ons
-# Cria um arquivo ZIP pronto para submissão
+# ================================================================
+# Budget Exporter - Build Script (for Mozilla Add-ons)
+# Creates a ready-to-upload ZIP package
+# ================================================================
 
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host "  Budget Exporter - Build Script" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Configurações
-$sourceDir = "budget-exporter"
-$outputDir = "dist"
+# ----------------- Configuration -----------------
+$sourceDir = (Get-Location).Path
+$outputDir = Join-Path $sourceDir "dist"
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 
-# Lê a versão do manifest.json
-$manifestPath = Join-Path $sourceDir "manifest.json"
-if (Test-Path $manifestPath) {
-    $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-    $version = $manifest.version
-    Write-Host "Versão encontrada: $version" -ForegroundColor Green
-} else {
-    Write-Host "ERRO: manifest.json não encontrado!" -ForegroundColor Red
-    exit 1
+# ----------------- Helpers -----------------
+function Get-LatestTag {
+    try {
+        git -C $sourceDir rev-parse --is-inside-work-tree 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { return $null }
+        $tag = (git -C $sourceDir describe --tags --abbrev=0 2>$null)
+        if ([string]::IsNullOrWhiteSpace($tag)) { return $null }
+        return $tag.Trim()
+    } catch { return $null }
 }
 
-$zipName = "budget-exporter-v$version-$timestamp.zip"
-$zipPath = Join-Path $outputDir $zipName
+function Sanitize-Version([string]$raw) {
+    if ([string]::IsNullOrWhiteSpace($raw)) { return $null }
+    # Remove common 'v' prefix (v1.2.3 -> 1.2.3)
+    $v = $raw -replace '^\s*v',''
+    return $v.Trim()
+}
 
-# Cria diretório de saída se não existir
+function Should-Exclude($relativePath, [string[]]$patterns) {
+    foreach ($p in $patterns) {
+        if (
+        ($relativePath -like $p) -or
+        ($relativePath -like ("*/" + $p)) -or   # forward slashes
+        ($relativePath -like ('*\' + $p))       # backslashes (use single quotes!)
+        ) {
+            return $true
+        }
+    }
+    return $false
+}
+
+# ----------------- Determine Version (git tag -> fallback timestamp) -----------------
+$latestTag  = Get-LatestTag
+$pkgVersion = if ($latestTag) { Sanitize-Version $latestTag } else { $timestamp }
+
+if ($latestTag) {
+    Write-Host "Latest tag found: $latestTag  -> version: $pkgVersion" -ForegroundColor Green
+} else {
+    Write-Host "No tags found. Using timestamp as version: $pkgVersion" -ForegroundColor Yellow
+}
+
+# ----------------- Prepare output paths -----------------
 if (-not (Test-Path $outputDir)) {
     New-Item -ItemType Directory -Path $outputDir | Out-Null
-    Write-Host "Diretório 'dist' criado" -ForegroundColor Yellow
+    Write-Host "Created 'dist' directory" -ForegroundColor Yellow
 }
+$zipName = "budget-exporter-v$pkgVersion.zip"
+$zipPath = Join-Path $outputDir $zipName
+if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
-Write-Host ""
-Write-Host "Preparando arquivos..." -ForegroundColor Yellow
-
-# Lista de arquivos/pastas a incluir
-$filesToInclude = @(
-    "manifest.json",
-    "*.js",
-    "*.html",
-    "*.css",
-    "icons",
-    "content-scripts",
-    "*.svg"
-)
-
-# Lista de arquivos/pastas a excluir
+# ----------------- Exclusion rules -----------------
 $filesToExclude = @(
-    "*.md",
-    "*.txt",
-    ".git*",
-    "node_modules",
-    ".DS_Store",
-    "Thumbs.db",
-    "*.log",
-    "*.tmp"
+    "*.md","*.txt",".git*","node_modules",".DS_Store","Thumbs.db","*.log","*.tmp","dist","*.ps1",".idea*", "dist*", "node_modules*"
 )
 
-# Remove arquivo ZIP antigo se existir
-if (Test-Path $zipPath) {
-    Remove-Item $zipPath -Force
-}
-
-# Cria arquivo temporário de lista
+# ----------------- Temporary directory -----------------
 $tempDir = Join-Path $env:TEMP "budget-exporter-build"
-if (Test-Path $tempDir) {
-    Remove-Item $tempDir -Recurse -Force
-}
+if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 
-# Copia arquivos para diretório temporário
-Write-Host "Copiando arquivos..." -ForegroundColor Yellow
-Copy-Item -Path (Join-Path $sourceDir "*") -Destination $tempDir -Recurse -Exclude $filesToExclude
-
-# Conta arquivos
-$fileCount = (Get-ChildItem -Path $tempDir -Recurse -File).Count
-Write-Host "Total de arquivos: $fileCount" -ForegroundColor Cyan
-
-# Cria o ZIP
 Write-Host ""
-Write-Host "Criando arquivo ZIP..." -ForegroundColor Yellow
-try {
-    Compress-Archive -Path (Join-Path $tempDir "*") -DestinationPath $zipPath -CompressionLevel Optimal -Force
-    Write-Host "ZIP criado com sucesso!" -ForegroundColor Green
-} catch {
-    Write-Host "ERRO ao criar ZIP: $_" -ForegroundColor Red
+Write-Host "Copying source files..." -ForegroundColor Yellow
+
+# Copy files excluding unwanted patterns (PS 5.1-friendly)
+$srcRoot = (Resolve-Path $sourceDir).Path
+Get-ChildItem -Path $sourceDir -Recurse -File | ForEach-Object {
+    $full = $_.FullName
+    # Compute relative path without PS7-only switches
+    $rel  = $full.Substring($srcRoot.Length).TrimStart('\','/')
+    if (-not (Should-Exclude $rel $filesToExclude)) {
+        $target    = Join-Path $tempDir $rel
+        $targetDir = Split-Path $target -Parent
+        if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir | Out-Null }
+        Copy-Item -LiteralPath $full -Destination $target -Force
+    }
+}
+
+# ----------------- Update manage.html (.version element) -----------------
+$managePath = (Join-Path $tempDir "manage.html")
+
+if (Test-Path $managePath) {
+$html = Get-Content $managePath -Raw -Encoding UTF8
+
+# Replace the inner text of any element that has class="... version ..."
+# Using single-quoted regex so backslashes are literal; \b and backref \k<tag> are preserved.
+$pattern = @'
+<(?<tag>\w+)(?<attrs>[^>]*\bclass=("|')[^"\']*\bversion\b[^"\']*("|\')[^>]*)>(?<inner>.*?)</\k<tag>\s*>
+'@
+    $options = [System.Text.RegularExpressions.RegexOptions]::Singleline
+
+    $newHtml = [System.Text.RegularExpressions.Regex]::Replace(
+        $html,
+        $pattern,
+        {
+            param($m)
+            "<$($m.Groups['tag'].Value)$($m.Groups['attrs'].Value)>$pkgVersion</$($m.Groups['tag'].Value)>"
+        },
+        $options
+    )
+
+    if ($newHtml -ne $html) {
+        Set-Content -LiteralPath $managePath -Value $newHtml -Encoding UTF8
+        Write-Host "manage.html: version updated -> $pkgVersion" -ForegroundColor Green
+    } else {
+        Write-Host "WARNING: Could not find an element with class='version' in manage.html" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "WARNING: manage.html not found" -ForegroundColor Yellow
+}
+
+# ----------------- Update manifest.json -----------------
+$manifestTempPath = Join-Path $tempDir "manifest.json"
+if (-not (Test-Path $manifestTempPath)) {
+    Write-Host "ERROR: manifest.json not found in package!" -ForegroundColor Red
     Remove-Item $tempDir -Recurse -Force
     exit 1
 }
 
-# Remove diretório temporário
+$manifest    = Get-Content $manifestTempPath -Raw | ConvertFrom-Json
+$oldVersion  = $manifest.version
+$manifest.version = $pkgVersion
+$manifest | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $manifestTempPath -Encoding UTF8
+Write-Host "manifest.json: $oldVersion -> $pkgVersion" -ForegroundColor Green
+
+# ----------------- Count and compress -----------------
+$fileCount = (Get-ChildItem -Path $tempDir -Recurse -File).Count
+Write-Host "Total files (temp): $fileCount" -ForegroundColor Cyan
+
+Write-Host ""
+Write-Host "Creating ZIP archive ($zipName)..." -ForegroundColor Yellow
+try {
+    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+    Compress-Archive -Path (Join-Path $tempDir "*") -DestinationPath $zipPath -CompressionLevel Optimal -Force
+    Write-Host "ZIP successfully created!" -ForegroundColor Green
+} catch {
+    Write-Host "ERROR while creating ZIP: $_" -ForegroundColor Red
+    Remove-Item $tempDir -Recurse -Force
+    exit 1
+}
+
+# ----------------- Cleanup -----------------
 Remove-Item $tempDir -Recurse -Force
 
-# Informações do arquivo criado
+# ----------------- Final Info -----------------
 $zipInfo = Get-Item $zipPath
-$sizeKB = [math]::Round($zipInfo.Length / 1KB, 2)
-$sizeMB = [math]::Round($zipInfo.Length / 1MB, 2)
+$sizeKB  = [math]::Round($zipInfo.Length / 1KB, 2)
+$sizeMB  = [math]::Round($zipInfo.Length / 1MB, 2)
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Green
-Write-Host "  Build concluído com sucesso!" -ForegroundColor Green
+Write-Host "  Build completed successfully!" -ForegroundColor Green
 Write-Host "================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Arquivo: $zipName" -ForegroundColor Cyan
-Write-Host "Local: $zipPath" -ForegroundColor Cyan
-Write-Host "Tamanho: $sizeKB KB ($sizeMB MB)" -ForegroundColor Cyan
+Write-Host "Version used: $pkgVersion" -ForegroundColor Cyan
+Write-Host "File: $zipName" -ForegroundColor Cyan
+Write-Host "Location: $zipPath" -ForegroundColor Cyan
+Write-Host "Size: $sizeKB KB ($sizeMB MB)" -ForegroundColor Cyan
 Write-Host ""
+Write-Host "Validating structure..." -ForegroundColor Yellow
 
-# Validação básica
-Write-Host "Validando estrutura..." -ForegroundColor Yellow
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-
 $hasManifest = $zip.Entries | Where-Object { $_.Name -eq "manifest.json" }
-$hasIcons = $zip.Entries | Where-Object { $_.FullName -like "icons/*" }
-
-if ($hasManifest) {
-    Write-Host "[OK] manifest.json encontrado" -ForegroundColor Green
-} else {
-    Write-Host "[ERRO] manifest.json NÃO encontrado!" -ForegroundColor Red
-}
-
-if ($hasIcons) {
-    Write-Host "[OK] Ícones encontrados" -ForegroundColor Green
-} else {
-    Write-Host "[AVISO] Nenhum ícone encontrado" -ForegroundColor Yellow
-}
-
+$hasIcons    = $zip.Entries | Where-Object { $_.FullName -like "icons/*" }
 $zip.Dispose()
 
-Write-Host ""
-Write-Host "Próximos passos:" -ForegroundColor Cyan
-Write-Host "1. Teste a extensão localmente (about:debugging)" -ForegroundColor White
-Write-Host "2. Acesse https://addons.mozilla.org/developers/" -ForegroundColor White
-Write-Host "3. Faça upload do arquivo: $zipName" -ForegroundColor White
-Write-Host ""
-Write-Host "Pressione qualquer tecla para abrir o diretório..." -ForegroundColor Yellow
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+if ($hasManifest) { Write-Host "[OK] manifest.json found" -ForegroundColor Green } else { Write-Host "[ERROR] manifest.json NOT found!" -ForegroundColor Red }
+if ($hasIcons)    { Write-Host "[OK] Icons found"          -ForegroundColor Green } else { Write-Host "[WARNING] No icons found" -ForegroundColor Yellow }
 
-# Abre o diretório dist
-Start-Process explorer.exe -ArgumentList $outputDir
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor Cyan
+Write-Host "1. Test the extension locally (about:debugging)" -ForegroundColor White
+Write-Host "2. Go to https://addons.mozilla.org/developers/" -ForegroundColor White
+Write-Host "3. Upload the file: $zipName" -ForegroundColor White
+Write-Host ""
+Write-Host "Press any key to open the output directory..." -ForegroundColor Yellow
+$inCi = (($env:CI -and $env:CI.ToString().ToLower() -eq "true") -or $env:GITHUB_ACTIONS -or $env:TF_BUILD -or $env:BUILD_BUILDNUMBER)
+if ($inCi) {
+    Write-Host "CI environment detected. Skipping pause and Explorer." -ForegroundColor Yellow
+} else {
+    try {
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        Start-Process explorer.exe -ArgumentList $outputDir
+    } catch {
+        Write-Host "Non-interactive host detected. Skipping pause and Explorer." -ForegroundColor Yellow
+    }
+}
