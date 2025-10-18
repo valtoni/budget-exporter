@@ -1,5 +1,5 @@
 // Background script - processa dados e gera CSV
-// Usa BankUtils (carregado via bank-utils.js no manifest)
+// Usa BankUtils (carregado via accounts-facilities.js no manifest)
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === "EXPORT_ROWS" && Array.isArray(msg.rows)) {

@@ -1,5 +1,3 @@
-// Script para página de gerenciamento
-
 // Estado do formulário
 let editingRuleId = null;
 
@@ -98,97 +96,6 @@ function setupEventListeners() {
             }
         });
     }
-
-    // Search functionality
-    const searchButton = document.querySelector('.DocSearch-Button');
-    const searchInput = document.getElementById('search-input');
-
-    searchButton.addEventListener('click', () => {
-        toggleSearch(searchButton, searchInput);
-    });
-
-    // Ctrl+F shortcut
-    document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-            e.preventDefault();
-            toggleSearch(searchButton, searchInput);
-        }
-    });
-
-    // Search input event
-    searchInput.addEventListener('input', (e) => {
-        currentSearchTerm = e.target.value.toLowerCase();
-        const length = currentSearchTerm.length;
-
-        // Validação visual
-        if (length === 0 || length >= 3) {
-            searchInput.classList.remove('search-invalid');
-        } else {
-            searchInput.classList.add('search-invalid');
-        }
-
-        // Filtrar apenas se tiver 3+ caracteres
-        if (length >= 3) {
-            filterRules(currentSearchTerm);
-        } else if (length === 0) {
-            filterRules(''); // Mostrar tudo
-        }
-    });
-
-    searchInput.addEventListener('blur', () => {
-        if (!currentSearchTerm) {
-            setTimeout(() => {
-                toggleSearch(searchButton, searchInput);
-            }, 200);
-        }
-    });
-
-    // Filtro de conta
-    const accountInput = document.getElementById('rule-account');
-    const accountDropdown = document.getElementById('account-dropdown');
-    const accountButton = accountInput.nextElementSibling;
-
-    accountInput.addEventListener('input', (e) => {
-        filterDropdown(accountInput.value, accountDropdown);
-    });
-
-    accountInput.addEventListener('focus', () => {
-        filterDropdown(accountInput.value, accountDropdown);
-    });
-
-    accountButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        filterDropdown(accountInput.value, accountDropdown);
-    });
-
-    // Previne fechar dropdown ao clicar no input
-    accountInput.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
-
-    // Filtro de categoria
-    const categoryInput = document.getElementById('rule-category');
-    const categoryDropdown = document.getElementById('category-dropdown');
-    const categoryButton = categoryInput.nextElementSibling;
-
-    categoryInput.addEventListener('input', (e) => {
-        filterDropdown(categoryInput.value, categoryDropdown);
-    });
-
-    categoryInput.addEventListener('focus', () => {
-        filterDropdown(categoryInput.value, categoryDropdown);
-    });
-
-    categoryButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        filterDropdown(categoryInput.value, categoryDropdown);
-    });
-
-    // Previne fechar dropdown ao clicar no input
-    categoryInput.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
-}
 
 // Função para trocar de tab manualmente
 function showTab(tabId, navId) {
@@ -811,61 +718,12 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Search functionality
-let currentSearchTerm = '';
 
-// Pagination
-let currentPage = 1;
-let itemsPerPage = 10;
-let allRulesData = [];
 
-function toggleSearch(button, input) {
-    if (input.classList.contains('d-none')) {
-        button.classList.add('d-none');
-        input.classList.remove('d-none');
-        input.focus();
-    } else {
-        button.classList.remove('d-none');
-        input.classList.add('d-none');
-        currentSearchTerm = '';
-        input.value = '';
-        input.classList.remove('search-invalid');
-        filterRules('');
-    }
-}
 
-function filterRules(searchTerm) {
-    const rows = document.querySelectorAll('#rules-list tbody tr');
 
-    if (!searchTerm) {
-        rows.forEach(row => row.style.display = '');
-        return;
-    }
 
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        const text = Array.from(cells).map(cell => cell.textContent.toLowerCase()).join(' ');
 
-        if (text.includes(searchTerm)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
-    });
-}
 
-function filterDropdown(searchTerm, dropdown) {
-    const items = dropdown.querySelectorAll('.dropdown-item');
-    const lowerSearch = searchTerm.toLowerCase();
 
-    items.forEach(item => {
-        const text = item.textContent.toLowerCase();
-        const li = item.parentElement;
 
-        if (text.includes(lowerSearch)) {
-            li.style.display = '';
-        } else {
-            li.style.display = 'none';
-        }
-    });
-}

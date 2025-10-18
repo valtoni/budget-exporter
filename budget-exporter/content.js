@@ -1,5 +1,5 @@
 // Content script - extrai transações do DOM usando seletores específicos do banco
-// Usa BankUtils (carregado via bank-utils.js no manifest)
+// Usa BankUtils (carregado via accounts-facilities.js no manifest)
 
 // Extrai transações usando os seletores fornecidos
 function extractRows(selectors) {
