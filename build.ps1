@@ -59,7 +59,7 @@ if (-not (Test-Path $outputDir)) {
     New-Item -ItemType Directory -Path $outputDir | Out-Null
     Write-Host "Created 'dist' directory" -ForegroundColor Yellow
 }
-$zipName = "budget-exporter-v$pkgVersion.zip"
+$zipName = "budget-exporter-v$pkgVersion.xpi"
 $zipPath = Join-Path $outputDir $zipName
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
@@ -142,13 +142,13 @@ $fileCount = (Get-ChildItem -Path $tempDir -Recurse -File).Count
 Write-Host "Total files (temp): $fileCount" -ForegroundColor Cyan
 
 Write-Host ""
-Write-Host "Creating ZIP archive ($zipName)..." -ForegroundColor Yellow
+Write-Host "Creating xpi archive ($zipName)..." -ForegroundColor Yellow
 try {
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
     Compress-Archive -Path (Join-Path $tempDir "*") -DestinationPath $zipPath -CompressionLevel Optimal -Force
-    Write-Host "ZIP successfully created!" -ForegroundColor Green
+    Write-Host "xpi successfully created!" -ForegroundColor Green
 } catch {
-    Write-Host "ERROR while creating ZIP: $_" -ForegroundColor Red
+    Write-Host "ERROR while creating xpi: $_" -ForegroundColor Red
     Remove-Item $tempDir -Recurse -Force
     exit 1
 }

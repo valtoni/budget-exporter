@@ -8,13 +8,26 @@
       "id": "budget-exporter@valtoni.github.io"
     }
   },
+  "icons": {
+    "16":  "icons/icon.svg",
+    "32":  "icons/icon.svg",
+    "48":  "icons/icon.svg",
+    "64":  "icons/icon.svg",
+    "128": "icons/icon.svg"
+  },
   "browser_action": {
     "default_title": "Budget Exporter - GitHub",
-    "default_icon": "icon.svg"
+    "default_icon": {
+      "16": "icons/icon.svg",
+      "32": "icons/icon.svg"
+    }
   },
   "page_action": {
     "default_title": "Exportar transações para CSV",
-    "default_icon": "icon-pageaction.svg",
+    "default_icon": {
+      "16": "icons/icon-pageaction.svg",
+      "32": "icons/icon-pageaction.svg"
+    },
     "show_matches": [
       "*://*.desjardins.com/comptes/courant/*",
       "*://*.desjardins.com/sommaire-perso/sommaire/sommaire-spa/CC/*",
