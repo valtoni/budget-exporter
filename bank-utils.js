@@ -262,9 +262,10 @@ function enDateToISO(dateStr) {
  * Aplica regras de matching síncronas (já pré-carregadas)
  * @param {string} payee - Descrição original da transação
  * @param {Array} rules - Array de regras pré-carregadas
+ * @param {Map} categoryIdToName - Map de categoryId para nome da categoria
  * @returns {Object} - { payee, category, memo, matched }
  */
-function applyRulesSync(payee, rules) {
+function applyRulesSync(payee, rules, categoryIdToName = null) {
     for (const rule of rules) {
         if (!rule.enabled) continue;
 
@@ -297,9 +298,19 @@ function applyRulesSync(payee, rules) {
                 }
             }
 
+            // Resolve categoryId para nome da categoria
+            let category = '';
+            if (rule.categoryId && categoryIdToName) {
+                category = categoryIdToName.get(rule.categoryId) || '';
+            }
+            // Fallback para rule.category (compatibilidade com regras antigas)
+            if (!category && rule.category) {
+                category = rule.category;
+            }
+
             return {
                 payee: rule.replacement || payee,
-                category: rule.category || '',
+                category: category,
                 memo: memo,
                 matched: true
             };
@@ -325,9 +336,10 @@ function applyRulesSync(payee, rules) {
 async function toCsv(rows = [], accountId, dateParser, amountParser) {
     const header = ["Date", "Payee", "Category", "Memo", "Outflow", "Inflow"];
 
-    // Pré-carrega regras UMA VEZ (async) antes do loop
-    const hasStorage = typeof window !== 'undefined' && window.StorageManager;
+    // Pré-carrega regras e categorias UMA VEZ (async) antes do loop
+    const hasStorage = typeof window !== 'undefined' && window.BudgetStorage;
     let rules = [];
+    let categoryIdToName = null;
 
     if (hasStorage) {
         try {
@@ -339,8 +351,13 @@ async function toCsv(rows = [], accountId, dateParser, amountParser) {
             }
 
             console.log('toCsv: accountId =', accountId, '-> account.id =', account.id, ', name =', account.name);
-            rules = await window.StorageManager.getRulesForAccountId(account.id);
-            console.log('toCsv: regras carregadas =', rules.length);
+            rules = await window.BudgetStorage.getRulesForAccountId(account.id);
+            console.log('toCsv: regras carregadas (incluindo globais) =', rules.length);
+
+            // Carrega categorias e cria Map de categoryId -> nome
+            const categories = await window.BudgetStorage.getCategories();
+            categoryIdToName = new Map(categories.map(c => [c.id, c.name]));
+            console.log('toCsv: categorias carregadas =', categories.length);
         } catch (e) {
             console.warn('Erro ao carregar regras:', e);
         }
@@ -362,7 +379,7 @@ async function toCsv(rows = [], accountId, dateParser, amountParser) {
 
         // Aplica regras síncronas (já carregadas)
         if (rules.length > 0 && window.BankUtils?.applyRulesSync) {
-            const result = window.BankUtils.applyRulesSync(payee, rules);
+            const result = window.BankUtils.applyRulesSync(payee, rules, categoryIdToName);
             if (result.matched) {
                 payee = result.payee;
                 category = result.category;

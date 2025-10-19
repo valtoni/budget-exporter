@@ -86,7 +86,7 @@ function normalizeCategoryInput(item) {
     return null;
 }
 
-const StorageManager = {
+const BudgetStorage = {
     // Chaves do storage
     KEYS: {
         PAYEE_RULES: 'payee_rules',      // Array de regras de correspondência de payee
@@ -167,10 +167,10 @@ const StorageManager = {
      */
     async getAll() {
         if (isFirefox) {
-            return await storageAPI.sync.get(null) || {};
+            return await storageAPI.local.get(null) || {};
         } else {
             return new Promise((resolve) => {
-                storageAPI.sync.get(null, (items) => {
+                storageAPI.local.get(null, (items) => {
                     resolve(items || {});
                 });
             });
@@ -192,11 +192,11 @@ const StorageManager = {
     async getPayeeRules() {
         let rawRules;
         if (isFirefox) {
-            const items = await storageAPI.sync.get(this.KEYS.PAYEE_RULES);
+            const items = await storageAPI.local.get(this.KEYS.PAYEE_RULES);
             rawRules = items[this.KEYS.PAYEE_RULES] || [];
         } else {
             rawRules = await new Promise((resolve) => {
-                storageAPI.sync.get(this.KEYS.PAYEE_RULES, (items) => {
+                storageAPI.local.get(this.KEYS.PAYEE_RULES, (items) => {
                     resolve(items[this.KEYS.PAYEE_RULES] || []);
                 });
             });
@@ -224,10 +224,10 @@ const StorageManager = {
      */
     async setPayeeRules(rules) {
         if (isFirefox) {
-            await storageAPI.sync.set({ [this.KEYS.PAYEE_RULES]: rules });
+            await storageAPI.local.set({ [this.KEYS.PAYEE_RULES]: rules });
         } else {
             return new Promise((resolve, reject) => {
-                storageAPI.sync.set({ [this.KEYS.PAYEE_RULES]: rules }, () => {
+                storageAPI.local.set({ [this.KEYS.PAYEE_RULES]: rules }, () => {
                     const err = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) ? chrome.runtime.lastError : null;
                     if (err) {
                         reject(new Error(err.message || String(err)));
@@ -254,9 +254,11 @@ const StorageManager = {
             const found = categories.find(c => c.name.toLowerCase() === String(rule.category).toLowerCase());
             categoryId = found ? found.id : '';
         }
+        // Normaliza accountId: null/undefined/0 vira 0 (global), outros valores ficam como estão
+        let accountId = (rule.accountId == null || rule.accountId === 0) ? 0 : rule.accountId;
         rules.push({
             id: Date.now(),
-            accountId: rule.accountId || null,
+            accountId: accountId,
             pattern: rule.pattern,
             replacement: rule.replacement,
             categoryId: categoryId || '',
@@ -298,9 +300,9 @@ const StorageManager = {
     async getCategories() {
         const raw = await new Promise((resolve) => {
             if (isFirefox) {
-                storageAPI.sync.get(this.KEYS.CATEGORIES).then((items) => resolve(items[this.KEYS.CATEGORIES] || [])).catch(() => resolve([]));
+                storageAPI.local.get(this.KEYS.CATEGORIES).then((items) => resolve(items[this.KEYS.CATEGORIES] || [])).catch(() => resolve([]));
             } else {
-                storageAPI.sync.get(this.KEYS.CATEGORIES, (items) => {
+                storageAPI.local.get(this.KEYS.CATEGORIES, (items) => {
                     resolve((items && items[this.KEYS.CATEGORIES]) || []);
                 });
             }
@@ -328,10 +330,10 @@ const StorageManager = {
             if (!seen.has(key)) { seen.add(key); unique.push({ id: key, name: c.name }); }
         }
         if (isFirefox) {
-            await storageAPI.sync.set({ [this.KEYS.CATEGORIES]: unique });
+            await storageAPI.local.set({ [this.KEYS.CATEGORIES]: unique });
         } else {
             return new Promise((resolve, reject) => {
-                storageAPI.sync.set({ [this.KEYS.CATEGORIES]: unique }, () => {
+                storageAPI.local.set({ [this.KEYS.CATEGORIES]: unique }, () => {
                     const err = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) ? chrome.runtime.lastError : null;
                     if (err) {
                         reject(new Error(err.message || String(err)));
@@ -349,11 +351,11 @@ const StorageManager = {
      */
     async getAccounts() {
         if (isFirefox) {
-            const items = await storageAPI.sync.get(this.KEYS.ACCOUNTS);
+            const items = await storageAPI.local.get(this.KEYS.ACCOUNTS);
             return items[this.KEYS.ACCOUNTS] || [];
         } else {
             return new Promise((resolve) => {
-                storageAPI.sync.get(this.KEYS.ACCOUNTS, (items) => {
+                storageAPI.local.get(this.KEYS.ACCOUNTS, (items) => {
                     resolve(items[this.KEYS.ACCOUNTS] || []);
                 });
             });
@@ -366,10 +368,10 @@ const StorageManager = {
      */
     async setAccounts(accounts) {
         if (isFirefox) {
-            await storageAPI.sync.set({ [this.KEYS.ACCOUNTS]: accounts });
+            await storageAPI.local.set({ [this.KEYS.ACCOUNTS]: accounts });
         } else {
             return new Promise((resolve, reject) => {
-                storageAPI.sync.set({ [this.KEYS.ACCOUNTS]: accounts }, () => {
+                storageAPI.local.set({ [this.KEYS.ACCOUNTS]: accounts }, () => {
                     const err = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) ? chrome.runtime.lastError : null;
                     if (err) {
                         reject(new Error(err.message || String(err)));
@@ -460,15 +462,20 @@ const StorageManager = {
 
     /**
      * Obtém regras aplicáveis a uma conta específica (por ID numérico)
-     * Inclui regras da conta alvo + regras da conta coringa (id: 0)
+     * Inclui regras da conta alvo + regras da conta coringa (id: 0 ou null)
      * @param {number} accountId ID numérico da conta
      * @returns {Promise<Array>} Array de regras aplicáveis
      */
     async getRulesForAccountId(accountId) {
         const allRules = await this.getPayeeRules();
 
-        // Retorna regras da conta específica + regras da conta coringa (id: 0)
-        return allRules.filter(r => r.accountId === accountId || r.accountId === 0);
+        // Se accountId é 0, retorna APENAS regras globais (0 ou null)
+        if (accountId === 0) {
+            return allRules.filter(r => r.accountId === 0 || r.accountId == null);
+        }
+
+        // Retorna regras da conta específica + regras da conta coringa (id: 0 ou null)
+        return allRules.filter(r => r.accountId === accountId || r.accountId === 0 || r.accountId == null);
     },
 
     /**
@@ -518,7 +525,7 @@ const StorageManager = {
     },
 
     /**
-     * Exporta todos os dados do storage (sync) para um arquivo JSON baixado no navegador
+     * Exporta todos os dados do storage (local) para um arquivo JSON baixado no navegador
      * @param {string} [filename] Nome do arquivo (opcional)
      */
     async exportData(filename) {
@@ -592,9 +599,18 @@ const StorageManager = {
             if (!categoryId && catName) {
                 categoryId = nameToId.get(catName.toLowerCase()) || md5(catName.toLowerCase());
             }
+            // Normaliza accountId: null ou undefined vira 0 (global)
+            let accountId;
+            if (typeof r.accountId === 'number') {
+                accountId = r.accountId;
+            } else if (r.accountId == null) {
+                accountId = 0; // null ou undefined -> 0 (global)
+            } else {
+                accountId = Number(r.accountId) || 0;
+            }
             return {
                 id: typeof r.id === 'number' ? r.id : Date.now(),
-                accountId: typeof r.accountId === 'number' ? r.accountId : (r.accountId == null ? null : Number(r.accountId) || 0),
+                accountId: accountId,
                 pattern: typeof r.pattern === 'string' ? r.pattern : '',
                 replacement: typeof r.replacement === 'string' ? r.replacement : '',
                 categoryId,
@@ -622,5 +638,6 @@ const StorageManager = {
 
 // Exporta para o escopo global
 if (typeof window !== 'undefined') {
-    window.StorageManager = StorageManager;
+    window.StorageManager = BudgetStorage;
+    window.BudgetStorage = BudgetStorage; // Mantém compatibilidade
 }
