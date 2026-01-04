@@ -234,9 +234,9 @@ function enDateToISO(dateStr) {
         'december': '12', 'dec': '12'
     };
 
-    // Formato: "October 11, 2025 • 8:22 PM • Entertainment"
-    // Extrai apenas a parte da data
-    const datePart = dateStr.split('•')[0].trim();
+    // Formato: "October 11, 2025 • 8:22 PM • Entertainment" ou "January 2, 2026 · 3:42 AM · Bills and Services"
+    // Extrai apenas a parte da data, aceitando diferentes tipos de pontos separadores
+    const datePart = dateStr.split(/[•·]/)[0].trim();
 
     // Parse: "October 11, 2025"
     const parts = datePart.split(/[\s,]+/).filter(p => p);
@@ -425,7 +425,8 @@ function parseKohoAmount(amountRaw) {
     const amount = amountRaw
         .replace(/\s/g, '')
         .replace(/\+/g, '')
-        .replace(/\$/g, '');
+        .replace(/\$/g, '')
+        .replace(/,/g, '');
 
     const inflow = isInflow ? amount : '';
     const outflow = !isInflow ? amount : '';

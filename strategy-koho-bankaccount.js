@@ -26,16 +26,16 @@ export function extractTransactions() {
     const rows = document.querySelectorAll('div.flex.items-center.justify-between.border-b.border-grey-200.py-8');
 
     rows.forEach(row => {
-        // Extrai payee (descrição) - primeiro <p> dentro do segundo div
-        const payeeElement = row.querySelector('div.ml-16.flex.flex-col p.font-basel-grotesk.text-base');
+        // Extrai payee (descrição) - div com classe type-paragraph-medium
+        const payeeElement = row.querySelector('.type-paragraph-medium');
         const payee = payeeElement ? payeeElement.innerText.trim() : '';
 
-        // Extrai data e categoria - segundo <p>
-        const dateElement = row.querySelector('div.ml-16.flex.flex-col p.m-0.p-0.font-basel-grotesk.text-sm');
+        // Extrai data e categoria - div com classe type-subtitle
+        const dateElement = row.querySelector('.type-subtitle');
         const dateText = dateElement ? dateElement.innerText.trim() : '';
 
-        // Extrai valor - último <span> da linha
-        const amountElement = row.querySelector('span.font-basel-grotesk.text-base\\/\\[18px\\].font-semibold');
+        // Extrai valor - div com classe type-number-small
+        const amountElement = row.querySelector('.type-number-small');
         const amount = amountElement ? amountElement.innerText.trim() : '';
 
         if (payee && dateText && amount) {
