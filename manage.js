@@ -127,12 +127,8 @@ function setupEventListeners() {
             searchInput.classList.add('search-invalid');
         }
 
-        // Filtrar apenas se tiver 3+ caracteres
-        if (length >= 3) {
-            filterRules(currentSearchTerm);
-        } else if (length === 0) {
-            filterRules(''); // Mostrar tudo
-        }
+        // Chamar filterRules em qualquer caso (a função lidará com < 3 caracteres)
+        filterRules(currentSearchTerm);
     });
 
     searchInput.addEventListener('blur', () => {
@@ -421,18 +417,24 @@ async function loadRules() {
     }));
     allRulesData = { rules: rulesWithNames, accounts };
 
-    renderRulesPage(currentPage);
+    // Se houver um termo de pesquisa ativo, reaplica o filtro
+    if (currentSearchTerm && currentSearchTerm.length >= 3) {
+        filterRules(currentSearchTerm);
+    } else {
+        renderRulesPage(currentPage);
+    }
 }
 
 // Renderiza página de regras
-function renderRulesPage(page) {
-    const { rules, accounts } = allRulesData;
+function renderRulesPage(page, filteredRules = null) {
+    const { rules: allRules, accounts } = allRulesData;
+    const rules = filteredRules || allRules;
     const list = document.getElementById('rules-list');
 
     list.innerHTML = '';
 
     if (rules.length === 0) {
-        list.innerHTML = '<div class="text-center text-muted py-5">Nenhuma regra cadastrada</div>';
+        list.innerHTML = `<div class="text-center text-muted py-5">${filteredRules ? 'Nenhuma regra encontrada para a pesquisa' : 'Nenhuma regra cadastrada'}</div>`;
         return;
     }
 
@@ -579,7 +581,7 @@ function renderRulesPage(page) {
             e.preventDefault();
             if (page > 1) {
                 currentPage = page - 1;
-                renderRulesPage(currentPage);
+                renderRulesPage(currentPage, filteredRules);
             }
         });
         prevLi.appendChild(prevLink);
@@ -604,7 +606,7 @@ function renderRulesPage(page) {
             pageLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 currentPage = i;
-                renderRulesPage(currentPage);
+                renderRulesPage(currentPage, filteredRules);
             });
             pageLi.appendChild(pageLink);
             pagination.appendChild(pageLi);
@@ -645,7 +647,7 @@ function renderRulesPage(page) {
             e.preventDefault();
             if (page < totalPages) {
                 currentPage = page + 1;
-                renderRulesPage(currentPage);
+                renderRulesPage(currentPage, filteredRules);
             }
         });
         nextLi.appendChild(nextLink);
@@ -867,23 +869,35 @@ function toggleSearch(button, input) {
 }
 
 function filterRules(searchTerm) {
-    const rows = document.querySelectorAll('#rules-list tbody tr');
+    const { rules, accounts } = allRulesData;
 
-    if (!searchTerm) {
-        rows.forEach(row => row.style.display = '');
+    if (!searchTerm || searchTerm.length < 3) {
+        currentPage = 1;
+        renderRulesPage(currentPage);
         return;
     }
 
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        const text = Array.from(cells).map(cell => cell.textContent.toLowerCase()).join(' ');
+    const lowerSearch = searchTerm.toLowerCase();
 
-        if (text.includes(searchTerm)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
+    const filteredRules = rules.filter(rule => {
+        // Busca em: Conta
+        const account = accounts.find(a => a.id === rule.accountId);
+        const accountName = account ? (account.id === 0 ? 'Todas' : account.name) : '';
+        
+        // Busca em: Padrão, Substituição, Categoria, Memo
+        const searchableText = [
+            accountName,
+            rule.pattern,
+            rule.replacement,
+            rule._categoryName,
+            rule.memoTemplate
+        ].map(t => (t || '').toLowerCase()).join(' ');
+
+        return searchableText.includes(lowerSearch);
     });
+
+    currentPage = 1;
+    renderRulesPage(currentPage, filteredRules);
 }
 
 function filterDropdown(searchTerm, dropdown) {
