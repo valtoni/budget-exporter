@@ -41,8 +41,7 @@
     "*://*.koho.ca/*"
   ],
   "web_accessible_resources": [
-    "bank-*.js",
-    "desjardins-*.js"
+    "strategy-*.js"
   ],
   "options_ui": {
     "page": "manage.html",
