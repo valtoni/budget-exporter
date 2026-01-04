@@ -119,10 +119,9 @@ budget-exporter/
 ├── manage.css                 # Estilos customizados
 ├── storage-manager.js         # Abstração do storage
 ├── icon.svg                   # Ícone principal
-├── icons/                     # Ícones em vários tamanhos
-│   ├── icon-48.png
-│   ├── icon-96.png
-│   └── icon-128.png
+├── icons/                     # Ícones da extensão
+│   ├── icon.svg               # Ícone principal (colorido)
+│   └── page_action.svg        # Ícone de ação (colorido)
 └── content-scripts/           # Scripts por banco
     ├── koho.js                # Extrator Koho
     ├── desjardins.js          # Extrator Desjardins

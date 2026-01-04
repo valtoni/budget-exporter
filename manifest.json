@@ -9,19 +9,18 @@
     }
   },
   "icons": {
-    "48": "icons/icon-48.png",
-    "96": "icons/icon-96.png"
+    "48": "icons/icon.svg"
   },
   "browser_action": {
     "default_title": "Budget Exporter - GitHub",
     "default_icon": {
-      "48": "icons/icon-48.png"
+      "48": "icons/icon.svg"
     }
   },
   "page_action": {
     "default_title": "Exportar transações para CSV",
     "default_icon": {
-      "32": "icons/page_action-32.png"
+      "32": "icons/page_action.svg"
     },
     "show_matches": [
       "*://*.desjardins.com/comptes/courant/*",
