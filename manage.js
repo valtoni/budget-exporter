@@ -586,7 +586,15 @@ function renderRulesPage(page) {
         pagination.appendChild(prevLi);
 
         // Páginas numeradas
-        for (let i = 1; i <= totalPages; i++) {
+        const maxVisible = 5;
+        let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+
+        if (endPage - startPage + 1 < maxVisible) {
+            startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+
+        const addPageLink = (i) => {
             const pageLi = document.createElement('li');
             pageLi.className = `page-item ${i === page ? 'active' : ''}`;
             const pageLink = document.createElement('a');
@@ -600,6 +608,30 @@ function renderRulesPage(page) {
             });
             pageLi.appendChild(pageLink);
             pagination.appendChild(pageLi);
+        };
+
+        const addEllipsis = () => {
+            const li = document.createElement('li');
+            li.className = 'page-item disabled';
+            const span = document.createElement('span');
+            span.className = 'page-link';
+            span.textContent = '...';
+            li.appendChild(span);
+            pagination.appendChild(li);
+        };
+
+        if (startPage > 1) {
+            addPageLink(1);
+            if (startPage > 2) addEllipsis();
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            addPageLink(i);
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) addEllipsis();
+            addPageLink(totalPages);
         }
 
         // Botão Próximo
