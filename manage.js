@@ -442,7 +442,7 @@ async function loadRules() {
 // Renderiza página de regras
 function renderRulesPage(page, filteredRules = null) {
     const { rules: allRules, accounts } = allRulesData;
-    const rules = filteredRules || allRules;
+    let rules = filteredRules || allRules;
     const list = document.getElementById('rules-list');
 
     list.innerHTML = '';
@@ -451,6 +451,46 @@ function renderRulesPage(page, filteredRules = null) {
         list.innerHTML = `<div class="text-center text-muted py-5">${filteredRules ? 'Nenhuma regra encontrada para a pesquisa' : 'Nenhuma regra cadastrada'}</div>`;
         return;
     }
+
+    // Ordenação
+    rules.sort((a, b) => {
+        let valA, valB;
+        
+        switch (currentSortCol) {
+            case 'account':
+                const accA = accounts.find(acc => acc.id === a.accountId);
+                const accB = accounts.find(acc => acc.id === b.accountId);
+                valA = accA ? (accA.id === 0 ? 'Todas' : accA.name) : '';
+                valB = accB ? (accB.id === 0 ? 'Todas' : accB.name) : '';
+                break;
+            case 'pattern':
+                valA = a.pattern || '';
+                valB = b.pattern || '';
+                break;
+            case 'replacement':
+                valA = a.replacement || '';
+                valB = b.replacement || '';
+                break;
+            case 'category':
+                valA = a._categoryName || '';
+                valB = b._categoryName || '';
+                break;
+            case 'memo':
+                valA = a.memoTemplate || '';
+                valB = b.memoTemplate || '';
+                break;
+            default:
+                valA = '';
+                valB = '';
+        }
+
+        valA = valA.toLowerCase();
+        valB = valB.toLowerCase();
+
+        if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
+        if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
 
     // Calcula índices para paginação
     const startIndex = (page - 1) * itemsPerPage;
@@ -465,16 +505,46 @@ function renderRulesPage(page, filteredRules = null) {
     // Cabeçalho
     const thead = document.createElement('thead');
     thead.className = 'table-light';
-    thead.innerHTML = `
-        <tr>
-            <th class="col-width-account">Conta</th>
-            <th class="col-width-pattern">Padrão</th>
-            <th class="col-width-replacement">Substituição</th>
-            <th class="col-width-category">Categoria</th>
-            <th class="col-width-memo">Memo</th>
-            <th class="col-width-actions text-end">Ações</th>
-        </tr>
-    `;
+    
+    const tr = document.createElement('tr');
+    const cols = [
+        { id: 'account', label: 'Conta', class: 'col-width-account' },
+        { id: 'pattern', label: 'Padrão', class: 'col-width-pattern' },
+        { id: 'replacement', label: 'Substituição', class: 'col-width-replacement' },
+        { id: 'category', label: 'Categoria', class: 'col-width-category' },
+        { id: 'memo', label: 'Memo', class: 'col-width-memo' },
+        { id: 'actions', label: 'Ações', class: 'col-width-actions text-end', sortable: false }
+    ];
+
+    cols.forEach(col => {
+        const th = document.createElement('th');
+        th.className = col.class;
+        if (col.sortable !== false) {
+            th.style.cursor = 'pointer';
+            th.classList.add('sortable-header');
+            
+            let icon = 'bi-arrow-down-up';
+            if (currentSortCol === col.id) {
+                icon = currentSortDir === 'asc' ? 'bi-sort-alpha-down' : 'bi-sort-alpha-up-alt';
+                th.classList.add('table-active');
+            }
+            
+            th.innerHTML = `${col.label} <i class="bi ${icon} ms-1 small text-muted"></i>`;
+            th.onclick = () => {
+                if (currentSortCol === col.id) {
+                    currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSortCol = col.id;
+                    currentSortDir = 'asc';
+                }
+                renderRulesPage(currentPage, filteredRules);
+            };
+        } else {
+            th.textContent = col.label;
+        }
+        tr.appendChild(th);
+    });
+    thead.appendChild(tr);
     table.appendChild(thead);
 
     // Corpo
@@ -865,7 +935,11 @@ let currentSearchTerm = '';
 // Pagination
 let currentPage = 1;
 let itemsPerPage = 10;
-let allRulesData = [];
+let allRulesData = { rules: [], accounts: [] };
+
+// Sorting
+let currentSortCol = 'pattern'; // Default sort
+let currentSortDir = 'asc';
 
 function toggleSearch(button, input) {
     if (input.classList.contains('d-none')) {
@@ -884,31 +958,27 @@ function toggleSearch(button, input) {
 
 function filterRules(searchTerm) {
     const { rules, accounts } = allRulesData;
+    let filteredRules = rules;
 
-    if (!searchTerm || searchTerm.length < 3) {
-        currentPage = 1;
-        renderRulesPage(currentPage);
-        return;
+    if (searchTerm && searchTerm.length >= 3) {
+        const lowerSearch = searchTerm.toLowerCase();
+        filteredRules = rules.filter(rule => {
+            // Busca em: Conta
+            const account = accounts.find(a => a.id === rule.accountId);
+            const accountName = account ? (account.id === 0 ? 'Todas' : account.name) : '';
+            
+            // Busca em: Padrão, Substituição, Categoria, Memo
+            const searchableText = [
+                accountName,
+                rule.pattern,
+                rule.replacement,
+                rule._categoryName,
+                rule.memoTemplate
+            ].map(t => (t || '').toLowerCase()).join(' ');
+
+            return searchableText.includes(lowerSearch);
+        });
     }
-
-    const lowerSearch = searchTerm.toLowerCase();
-
-    const filteredRules = rules.filter(rule => {
-        // Busca em: Conta
-        const account = accounts.find(a => a.id === rule.accountId);
-        const accountName = account ? (account.id === 0 ? 'Todas' : account.name) : '';
-        
-        // Busca em: Padrão, Substituição, Categoria, Memo
-        const searchableText = [
-            accountName,
-            rule.pattern,
-            rule.replacement,
-            rule._categoryName,
-            rule.memoTemplate
-        ].map(t => (t || '').toLowerCase()).join(' ');
-
-        return searchableText.includes(lowerSearch);
-    });
 
     currentPage = 1;
     renderRulesPage(currentPage, filteredRules);

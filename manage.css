@@ -196,3 +196,22 @@ body {
 .col-width-category { width: 15%; }
 .col-width-memo { width: 15%; }
 .col-width-actions { width: 10%; }
+
+/* Sorting */
+.sortable-header:hover {
+    background-color: #f1f3f5 !important;
+}
+
+.sortable-header i {
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+
+.sortable-header:hover i,
+.sortable-header.table-active i {
+    opacity: 1;
+}
+
+.sortable-header.table-active {
+    background-color: #e9ecef !important;
+}
