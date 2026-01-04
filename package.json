@@ -1,4 +1,7 @@
 {
+  "name": "budget-exporter",
+  "version": "1.0.0",
+  "description": "Detect bank pages and export to CSV.",
   "devDependencies": {
     "@types/chrome": "^0.1.24"
   },

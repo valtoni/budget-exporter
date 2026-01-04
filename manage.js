@@ -6,11 +6,25 @@ let editingRuleId = null;
 // Inicialização
 document.addEventListener('DOMContentLoaded', async () => {
     await StorageManager.init();
+    displayVersion();
     await loadAccounts();
     await loadCategories();
     await loadRules();
     setupEventListeners();
 });
+
+// Exibe a versão do plugin vinda do manifesto
+function displayVersion() {
+    try {
+        const manifest = chrome.runtime.getManifest();
+        const versionElement = document.querySelector('.nav-link.version');
+        if (versionElement && manifest.version) {
+            versionElement.textContent = `v${manifest.version}`;
+        }
+    } catch (e) {
+        console.warn('Não foi possível carregar a versão do manifesto:', e);
+    }
+}
 
 // Setup de event listeners
 function setupEventListeners() {
