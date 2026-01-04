@@ -13,24 +13,6 @@ $sourceDir = (Get-Location).Path
 $outputDir = Join-Path $sourceDir "dist"
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 
-# ----------------- Helpers -----------------
-function Get-LatestTag {
-    try {
-        git -C $sourceDir rev-parse --is-inside-work-tree 2>$null | Out-Null
-        if ($LASTEXITCODE -ne 0) { return $null }
-        $tag = (git -C $sourceDir describe --tags --abbrev=0 2>$null)
-        if ([string]::IsNullOrWhiteSpace($tag)) { return $null }
-        return $tag.Trim()
-    } catch { return $null }
-}
-
-function Sanitize-Version([string]$raw) {
-    if ([string]::IsNullOrWhiteSpace($raw)) { return $null }
-    # Remove common 'v' prefix (v1.2.3 -> 1.2.3)
-    $v = $raw -replace '^\s*v',''
-    return $v.Trim()
-}
-
 function Should-Exclude($relativePath, [string[]]$patterns) {
     foreach ($p in $patterns) {
         if (
@@ -44,14 +26,21 @@ function Should-Exclude($relativePath, [string[]]$patterns) {
     return $false
 }
 
-# ----------------- Determine Version (git tag -> fallback timestamp) -----------------
-$latestTag  = Get-LatestTag
-$pkgVersion = if ($latestTag) { Sanitize-Version $latestTag } else { $timestamp }
+# ----------------- Determine Version (manifest.json as source of truth) -----------------
+$manifestPath = Join-Path $sourceDir "manifest.json"
+if (-not (Test-Path $manifestPath)) {
+    Write-Host "ERROR: manifest.json not found in source directory!" -ForegroundColor Red
+    exit 1
+}
 
-if ($latestTag) {
-    Write-Host "Latest tag found: $latestTag  -> version: $pkgVersion" -ForegroundColor Green
+$manifestContent = Get-Content $manifestPath -Raw | ConvertFrom-Json
+$pkgVersion = $manifestContent.version
+
+if ([string]::IsNullOrWhiteSpace($pkgVersion)) {
+    Write-Host "WARNING: Version not found in manifest.json. Using timestamp: $timestamp" -ForegroundColor Yellow
+    $pkgVersion = $timestamp
 } else {
-    Write-Host "No tags found. Using timestamp as version: $pkgVersion" -ForegroundColor Yellow
+    Write-Host "Version from manifest.json: $pkgVersion" -ForegroundColor Green
 }
 
 # ----------------- Prepare output paths -----------------
@@ -81,9 +70,9 @@ $srcRoot = (Resolve-Path $sourceDir).Path
 Get-ChildItem -Path $sourceDir -Recurse -File | ForEach-Object {
     $full = $_.FullName
     # Compute relative path without PS7-only switches
-    $rel  = $full.Substring($srcRoot.Length).TrimStart('\','/')
+    $rel  = $full.Substring($srcRoot.Length).TrimStart('\','/').Replace('\', '/')
     if (-not (Should-Exclude $rel $filesToExclude)) {
-        $target    = Join-Path $tempDir $rel
+        $target    = Join-Path $tempDir $rel.Replace('/', '\')
         $targetDir = Split-Path $target -Parent
         if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir | Out-Null }
         Copy-Item -LiteralPath $full -Destination $target -Force
@@ -145,9 +134,26 @@ Write-Host ""
 Write-Host "Creating xpi archive ($zipName)..." -ForegroundColor Yellow
 try {
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-    Compress-Archive -Path (Join-Path $tempDir "*") -DestinationPath $zipPath -CompressionLevel Optimal -Force
-    Write-Host "xpi successfully created!" -ForegroundColor Green
+    # Use PowerShell to zip all files in tempDir with forward slashes internally.
+    # We must change location to tempDir to ensure paths are relative and POSIX-style.
+    $originalLocation = Get-Location
+    Set-Location $tempDir
+    
+    # In PowerShell, we can't easily force forward slashes in Compress-Archive.
+    # So we'll use System.IO.Compression.ZipFile to have full control.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [System.IO.Compression.ZipFile]::Open($zipPath, "Create")
+    
+    Get-ChildItem -Recurse -File | ForEach-Object {
+        $entryName = $_.FullName.Substring($tempDir.Length).TrimStart('\').Replace('\', '/')
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryName, "Optimal") | Out-Null
+    }
+    $zip.Dispose()
+    
+    Set-Location $originalLocation
+    Write-Host "xpi successfully created with POSIX paths!" -ForegroundColor Green
 } catch {
+    Set-Location $originalLocation
     Write-Host "ERROR while creating xpi: $_" -ForegroundColor Red
     Remove-Item $tempDir -Recurse -Force
     exit 1
@@ -176,7 +182,7 @@ Write-Host "Validating structure..." -ForegroundColor Yellow
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
 $hasManifest = $zip.Entries | Where-Object { $_.Name -eq "manifest.json" }
-$hasIcons    = $zip.Entries | Where-Object { $_.FullName -like "icons/*" }
+$hasIcons    = $zip.Entries | Where-Object { $_.FullName -like "*icons*" }
 $zip.Dispose()
 
 if ($hasManifest) { Write-Host "[OK] manifest.json found" -ForegroundColor Green } else { Write-Host "[ERROR] manifest.json NOT found!" -ForegroundColor Red }
