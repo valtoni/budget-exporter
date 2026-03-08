@@ -47,6 +47,35 @@ function extractDescription(td) {
     return td.innerText.trim();
 }
 
+function detectStatementYear(container = document) {
+    const sourceText = (
+        container.querySelector?.('caption')?.textContent ||
+        container.textContent ||
+        document.body?.textContent ||
+        ''
+    );
+    const normalizedText = sourceText
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    const patterns = [
+        /facturees?\s+en\s+[a-z]+\s+(\d{4})/i,
+        /transactions?\s+de\s+[a-z]+\s+(\d{4})/i,
+        /\b(janvier|janv|jan|fevrier|fev|mars|avril|avr|mai|juin|juillet|juil|aout|septembre|sept|sep|octobre|oct|novembre|nov|decembre|dec)\s+(\d{4})\b/i
+    ];
+
+    for (const pattern of patterns) {
+        const match = normalizedText.match(pattern);
+        if (!match) continue;
+        const year = match[match.length - 1];
+        if (/^\d{4}$/.test(year)) {
+            return year;
+        }
+    }
+
+    return String(new Date().getFullYear());
+}
+
 
 // Função de conversão para CSV no formato YNAB
 // Aplica regras de matching automaticamente
@@ -65,6 +94,7 @@ export function extractTransactions() {
     const transactions = [];
 
     tables.forEach(dsdTable => {
+        const inferredYear = detectStatementYear(dsdTable);
         const tbody = dsdTable.querySelector('tbody');
         if (!tbody) return;
 
@@ -88,6 +118,7 @@ export function extractTransactions() {
             if (dateText && description) {
                 transactions.push({
                     date: dateText,
+                    inferredYear,
                     payee: description,
                     amount: amountRaw
                 });

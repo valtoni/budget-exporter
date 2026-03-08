@@ -1,17 +1,28 @@
 # Budget Exporter
 
-Budget Exporter is a browser‑extension project that helps you export bank transactions to a clean, YNAB‑ready CSV in seconds. It includes a rules engine to standardize payee names, optional auto‑categorization, and a friendly management UI. The codebase currently targets Firefox (WebExtensions) and also provides a modern MV3 skeleton under the budget-exporter directory for Chrome/Edge.
+Budget Exporter is a Firefox WebExtension focused on turning supported bank statement pages into reviewed, YNAB-ready CSV exports.
 
-What it does
-- Scrapes transactions from supported bank pages
-- Cleans payee names (plain text or regex rules)
-- Optionally assigns categories
-- Exports a CSV ready to import into YNAB
+Current architecture highlights:
+- Firefox-first WebExtension using Manifest V3
+- review-first workflow through a sidebar
+- deterministic payee normalization and category suggestion
+- local rule engine only, with no AI or remote processing
+- local management page for rules, categories, accounts, import, and export
 
-Status
-- Actively evolving; contributions are welcome
+Core flow:
+1. Open a supported bank page in Firefox.
+2. Click the extension action.
+3. Review extracted transactions in the sidebar.
+4. Accept edits or create new rules from suggestions.
+5. Export the reviewed CSV.
 
-For full details and setup guides, see the detailed README in your preferred language:
+Supported banks today:
+- Desjardins bank account
+- Desjardins credit card
+- Koho prepaid card
+
+Documentation:
 - [Português (Brasil)](README.detail.pt-br.md)
 - [Français (Canada)](README.detail.fr-ca.md)
 - [English (US)](README.detail.en-us.md)
+- [Build notes](README-BUILD.md)

@@ -1,0 +1,383 @@
+diff --git a/bank-utils.js b/bank-utils.js
+index 2d9347d..0bb523b 100644
+--- a/bank-utils.js
++++ b/bank-utils.js
+@@ -234,9 +234,9 @@ function enDateToISO(dateStr) {
+         'december': '12', 'dec': '12'
+     };
+
+-    // Formato: "October 11, 2025 • 8:22 PM • Entertainment"
+-    // Extrai apenas a parte da data
+-    const datePart = dateStr.split('•')[0].trim();
++    // Formato: "October 11, 2025 • 8:22 PM • Entertainment" ou "January 2, 2026 · 3:42 AM · Bills and Services"
++    // Extrai apenas a parte da data, aceitando diferentes tipos de pontos separadores
++    const datePart = dateStr.split(/[•·]/)[0].trim();
+
+     // Parse: "October 11, 2025"
+     const parts = datePart.split(/[\s,]+/).filter(p => p);
+@@ -425,7 +425,8 @@ function parseKohoAmount(amountRaw) {
+     const amount = amountRaw
+         .replace(/\s/g, '')
+         .replace(/\+/g, '')
+-        .replace(/\$/g, '');
++        .replace(/\$/g, '')
++        .replace(/,/g, '');
+
+     const inflow = isInflow ? amount : '';
+     const outflow = !isInflow ? amount : '';
+diff --git a/manage.js b/manage.js
+index 6a3cae0..c805d7c 100644
+--- a/manage.js
++++ b/manage.js
+@@ -6,12 +6,26 @@ let editingRuleId = null;
+ // Inicialização
+ document.addEventListener('DOMContentLoaded', async () => {
+     await StorageManager.init();
++    displayVersion();
+     await loadAccounts();
+     await loadCategories();
+     await loadRules();
+     setupEventListeners();
+ });
+
++// Exibe a versão do plugin vinda do manifesto
++function displayVersion() {
++    try {
++        const manifest = chrome.runtime.getManifest();
++        const versionElement = document.querySelector('.nav-link.version');
++        if (versionElement && manifest.version) {
++            versionElement.textContent = `v${manifest.version}`;
++        }
++    } catch (e) {
++        console.warn('Não foi possível carregar a versão do manifesto:', e);
++    }
++}
++
+ // Setup de event listeners
+ function setupEventListeners() {
+     // Navegação manual entre tabs (navbar não usa data-bs-toggle)
+@@ -127,12 +141,8 @@ function setupEventListeners() {
+             searchInput.classList.add('search-invalid');
+         }
+
+-        // Filtrar apenas se tiver 3+ caracteres
+-        if (length >= 3) {
+-            filterRules(currentSearchTerm);
+-        } else if (length === 0) {
+-            filterRules(''); // Mostrar tudo
+-        }
++        // Chamar filterRules em qualquer caso (a função lidará com < 3 caracteres)
++        filterRules(currentSearchTerm);
+     });
+
+     searchInput.addEventListener('blur', () => {
+@@ -421,21 +431,67 @@ async function loadRules() {
+     }));
+     allRulesData = { rules: rulesWithNames, accounts };
+
+-    renderRulesPage(currentPage);
++    // Se houver um termo de pesquisa ativo, reaplica o filtro
++    if (currentSearchTerm && currentSearchTerm.length >= 3) {
++        filterRules(currentSearchTerm);
++    } else {
++        renderRulesPage(currentPage);
++    }
+ }
+
+ // Renderiza página de regras
+-function renderRulesPage(page) {
+-    const { rules, accounts } = allRulesData;
++function renderRulesPage(page, filteredRules = null) {
++    const { rules: allRules, accounts } = allRulesData;
++    let rules = filteredRules || allRules;
+     const list = document.getElementById('rules-list');
+
+     list.innerHTML = '';
+
+     if (rules.length === 0) {
+-        list.innerHTML = '<div class="text-center text-muted py-5">Nenhuma regra cadastrada</div>';
++        list.innerHTML = `<div class="text-center text-muted py-5">${filteredRules ? 'Nenhuma regra encontrada para a pesquisa' : 'Nenhuma regra cadastrada'}</div>`;
+         return;
+     }
+
++    // Ordenação
++    rules.sort((a, b) => {
++        let valA, valB;
++
++        switch (currentSortCol) {
++            case 'account':
++                const accA = accounts.find(acc => acc.id === a.accountId);
++                const accB = accounts.find(acc => acc.id === b.accountId);
++                valA = accA ? (accA.id === 0 ? 'Todas' : accA.name) : '';
++                valB = accB ? (accB.id === 0 ? 'Todas' : accB.name) : '';
++                break;
++            case 'pattern':
++                valA = a.pattern || '';
++                valB = b.pattern || '';
++                break;
++            case 'replacement':
++                valA = a.replacement || '';
++                valB = b.replacement || '';
++                break;
++            case 'category':
++                valA = a._categoryName || '';
++                valB = b._categoryName || '';
++                break;
++            case 'memo':
++                valA = a.memoTemplate || '';
++                valB = b.memoTemplate || '';
++                break;
++            default:
++                valA = '';
++                valB = '';
++        }
++
++        valA = valA.toLowerCase();
++        valB = valB.toLowerCase();
++
++        if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
++        if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
++        return 0;
++    });
++
+     // Calcula índices para paginação
+     const startIndex = (page - 1) * itemsPerPage;
+     const endIndex = startIndex + itemsPerPage;
+@@ -449,16 +505,46 @@ function renderRulesPage(page) {
+     // Cabeçalho
+     const thead = document.createElement('thead');
+     thead.className = 'table-light';
+-    thead.innerHTML = `
+-        <tr>
+-            <th class="col-width-account">Conta</th>
+-            <th class="col-width-pattern">Padrão</th>
+-            <th class="col-width-replacement">Substituição</th>
+-            <th class="col-width-category">Categoria</th>
+-            <th class="col-width-memo">Memo</th>
+-            <th class="col-width-actions text-end">Ações</th>
+-        </tr>
+-    `;
++
++    const tr = document.createElement('tr');
++    const cols = [
++        { id: 'account', label: 'Conta', class: 'col-width-account' },
++        { id: 'pattern', label: 'Padrão', class: 'col-width-pattern' },
++        { id: 'replacement', label: 'Substituição', class: 'col-width-replacement' },
++        { id: 'category', label: 'Categoria', class: 'col-width-category' },
++        { id: 'memo', label: 'Memo', class: 'col-width-memo' },
++        { id: 'actions', label: 'Ações', class: 'col-width-actions text-end', sortable: false }
++    ];
++
++    cols.forEach(col => {
++        const th = document.createElement('th');
++        th.className = col.class;
++        if (col.sortable !== false) {
++            th.style.cursor = 'pointer';
++            th.classList.add('sortable-header');
++
++            let icon = 'bi-arrow-down-up';
++            if (currentSortCol === col.id) {
++                icon = currentSortDir === 'asc' ? 'bi-sort-alpha-down' : 'bi-sort-alpha-up-alt';
++                th.classList.add('table-active');
++            }
++
++            th.innerHTML = `${col.label} <i class="bi ${icon} ms-1 small text-muted"></i>`;
++            th.onclick = () => {
++                if (currentSortCol === col.id) {
++                    currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
++                } else {
++                    currentSortCol = col.id;
++                    currentSortDir = 'asc';
++                }
++                renderRulesPage(currentPage, filteredRules);
++            };
++        } else {
++            th.textContent = col.label;
++        }
++        tr.appendChild(th);
++    });
++    thead.appendChild(tr);
+     table.appendChild(thead);
+
+     // Corpo
+@@ -579,14 +665,22 @@ function renderRulesPage(page) {
+             e.preventDefault();
+             if (page > 1) {
+                 currentPage = page - 1;
+-                renderRulesPage(currentPage);
++                renderRulesPage(currentPage, filteredRules);
+             }
+         });
+         prevLi.appendChild(prevLink);
+         pagination.appendChild(prevLi);
+
+         // Páginas numeradas
+-        for (let i = 1; i <= totalPages; i++) {
++        const maxVisible = 5;
++        let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
++        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
++
++        if (endPage - startPage + 1 < maxVisible) {
++            startPage = Math.max(1, endPage - maxVisible + 1);
++        }
++
++        const addPageLink = (i) => {
+             const pageLi = document.createElement('li');
+             pageLi.className = `page-item ${i === page ? 'active' : ''}`;
+             const pageLink = document.createElement('a');
+@@ -596,10 +690,34 @@ function renderRulesPage(page) {
+             pageLink.addEventListener('click', (e) => {
+                 e.preventDefault();
+                 currentPage = i;
+-                renderRulesPage(currentPage);
++                renderRulesPage(currentPage, filteredRules);
+             });
+             pageLi.appendChild(pageLink);
+             pagination.appendChild(pageLi);
++        };
++
++        const addEllipsis = () => {
++            const li = document.createElement('li');
++            li.className = 'page-item disabled';
++            const span = document.createElement('span');
++            span.className = 'page-link';
++            span.textContent = '...';
++            li.appendChild(span);
++            pagination.appendChild(li);
++        };
++
++        if (startPage > 1) {
++            addPageLink(1);
++            if (startPage > 2) addEllipsis();
++        }
++
++        for (let i = startPage; i <= endPage; i++) {
++            addPageLink(i);
++        }
++
++        if (endPage < totalPages) {
++            if (endPage < totalPages - 1) addEllipsis();
++            addPageLink(totalPages);
+         }
+
+         // Botão Próximo
+@@ -613,7 +731,7 @@ function renderRulesPage(page) {
+             e.preventDefault();
+             if (page < totalPages) {
+                 currentPage = page + 1;
+-                renderRulesPage(currentPage);
++                renderRulesPage(currentPage, filteredRules);
+             }
+         });
+         nextLi.appendChild(nextLink);
+@@ -817,7 +935,11 @@ let currentSearchTerm = '';
+ // Pagination
+ let currentPage = 1;
+ let itemsPerPage = 10;
+-let allRulesData = [];
++let allRulesData = { rules: [], accounts: [] };
++
++// Sorting
++let currentSortCol = 'pattern'; // Default sort
++let currentSortDir = 'asc';
+
+ function toggleSearch(button, input) {
+     if (input.classList.contains('d-none')) {
+@@ -835,23 +957,31 @@ function toggleSearch(button, input) {
+ }
+
+ function filterRules(searchTerm) {
+-    const rows = document.querySelectorAll('#rules-list tbody tr');
+-
+-    if (!searchTerm) {
+-        rows.forEach(row => row.style.display = '');
+-        return;
++    const { rules, accounts } = allRulesData;
++    let filteredRules = rules;
++
++    if (searchTerm && searchTerm.length >= 3) {
++        const lowerSearch = searchTerm.toLowerCase();
++        filteredRules = rules.filter(rule => {
++            // Busca em: Conta
++            const account = accounts.find(a => a.id === rule.accountId);
++            const accountName = account ? (account.id === 0 ? 'Todas' : account.name) : '';
++
++            // Busca em: Padrão, Substituição, Categoria, Memo
++            const searchableText = [
++                accountName,
++                rule.pattern,
++                rule.replacement,
++                rule._categoryName,
++                rule.memoTemplate
++            ].map(t => (t || '').toLowerCase()).join(' ');
++
++            return searchableText.includes(lowerSearch);
++        });
+     }
+
+-    rows.forEach(row => {
+-        const cells = row.querySelectorAll('td');
+-        const text = Array.from(cells).map(cell => cell.textContent.toLowerCase()).join(' ');
+-
+-        if (text.includes(searchTerm)) {
+-            row.style.display = '';
+-        } else {
+-            row.style.display = 'none';
+-        }
+-    });
++    currentPage = 1;
++    renderRulesPage(currentPage, filteredRules);
+ }
+
+ function filterDropdown(searchTerm, dropdown) {
+diff --git a/manifest.json b/manifest.json
+index cb2fc9a..b088978 100644
+--- a/manifest.json
++++ b/manifest.json
+@@ -2,31 +2,26 @@
+   "manifest_version": 2,
+   "name": "Budget Exporter",
+   "description": "Detect bank pages and export to CSV.",
+-  "version": "1.0.0",
++  "version": "1.2.0",
+   "browser_specific_settings": {
+     "gecko": {
+       "id": "budget-exporter@valtoni.github.io"
+     }
+   },
+   "icons": {
+-    "16":  "icons/icon.svg",
+-    "32":  "icons/icon.svg",
+-    "48":  "icons/icon.svg",
+-    "64":  "icons/icon.svg",
+-    "128": "icons/icon.svg"
++    "48": "icons/icon-48.png",
++    "96": "icons/icon-96.png"
+   },
+   "browser_action": {
+     "default_title": "Budget Exporter - GitHub",
+     "default_icon": {
+-      "16": "icons/icon.svg",
+-      "32": "icons/icon.svg"
++      "48": "icons/icon-48.png"
+     }
+   },
+   "page_action": {
+     "default_title": "Exportar transações para CSV",
+     "default_icon": {
+-      "16": "icons/icon-pageaction.svg",
+-      "32": "icons/icon-pageaction.svg"
++      "32": "icons/page_action-32.png"
+     },
+     "show_matches": [
+       "*://*.desjardins.com/comptes/courant/*",
+@@ -46,8 +41,7 @@
+     "*://*.koho.ca/*"
+   ],
+   "web_accessible_resources": [
+-    "bank-*.js",
+-    "desjardins-*.js"
++    "strategy-*.js"
+   ],
+   "options_ui": {
+     "page": "manage.html",

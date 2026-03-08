@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget Exporter Review</title>
+    <link rel="stylesheet" href="sidebar.css">
+</head>
+<body>
+    <header class="app-header">
+        <div>
+            <p class="eyebrow">Budget Exporter</p>
+            <h1>Review Sidebar</h1>
+        </div>
+        <button id="refresh-review" class="button ghost" type="button">Atualizar</button>
+    </header>
+
+    <section class="mode-switch" aria-label="Modos da sidebar">
+        <button id="mode-review" class="mode-button active" type="button">Revisar</button>
+        <button id="mode-manage" class="mode-button" type="button">Gerenciar</button>
+    </section>
+
+    <main>
+        <section id="review-panel" class="panel active">
+            <section class="summary-card" id="summary-card">
+                <div>
+                    <p class="label">Conta detectada</p>
+                    <strong id="summary-account">Nenhuma</strong>
+                </div>
+                <div>
+                    <p class="label">Pagina</p>
+                    <span id="summary-page">Sem dados</span>
+                </div>
+                <div class="summary-grid" id="summary-grid"></div>
+                <div id="summary-error" class="message error hidden"></div>
+            </section>
+
+            <section class="actions-row">
+                <button id="export-selected" class="button primary" type="button">Exportar selecionados</button>
+                <button id="open-manage-page" class="button ghost" type="button">Abrir gestao completa</button>
+            </section>
+
+            <section class="section-block cutoff-block">
+                <div class="section-head">
+                    <h2>Data de corte</h2>
+                    <span id="cutoff-status" class="pill neutral">Sem corte</span>
+                </div>
+                <div class="cutoff-row">
+                    <label class="cutoff-field">
+                        Exportar a partir de
+                        <input id="cutoff-date" type="date">
+                    </label>
+                    <div class="actions-row compact cutoff-actions">
+                        <button id="apply-cutoff" class="button primary" type="button">Aplicar</button>
+                        <button id="clear-cutoff" class="button ghost" type="button">Limpar</button>
+                    </div>
+                </div>
+                <p class="small">Ao aplicar o corte, transacoes anteriores ficam desmarcadas para exportacao, mas continuam visiveis para revisao.</p>
+            </section>
+
+            <section class="filter-row" id="filter-row">
+                <button class="filter-chip active" data-filter="all" type="button">Todos</button>
+                <button class="filter-chip" data-filter="matched" type="button">Com regra</button>
+                <button class="filter-chip" data-filter="suggested" type="button">Sugestoes</button>
+                <button class="filter-chip" data-filter="unmatched" type="button">Sem regra</button>
+            </section>
+
+            <section class="section-block">
+                <div class="section-head">
+                    <h2>Sugestoes locais</h2>
+                    <span id="suggestions-count" class="pill">0</span>
+                </div>
+                <div id="suggestions-list" class="stack"></div>
+            </section>
+
+            <section class="section-block">
+                <div class="section-head">
+                    <h2>Transacoes</h2>
+                    <span id="transactions-count" class="pill">0</span>
+                </div>
+                <div id="transactions-list" class="stack"></div>
+            </section>
+        </section>
+
+        <section id="manage-panel" class="panel">
+            <section class="section-block">
+                <div class="section-head">
+                    <h2>Criar regra</h2>
+                    <span id="rule-context" class="pill neutral">Selecione uma transacao ou sugestao</span>
+                </div>
+                <form id="rule-form" class="form-stack">
+                    <label>
+                        Conta
+                        <input id="rule-account-name" type="text" readonly>
+                    </label>
+                    <label>
+                        Padrao
+                        <input id="rule-pattern" type="text" required>
+                    </label>
+                    <label>
+                        Substituir por
+                        <input id="rule-replacement" type="text">
+                    </label>
+                    <label>
+                        Categoria
+                        <input id="rule-category" type="text" list="category-options" placeholder="Opcional">
+                    </label>
+                    <label>
+                        Memo template
+                        <input id="rule-memo" type="text" placeholder="Opcional">
+                    </label>
+                    <label class="checkbox-row">
+                        <input id="rule-regex" type="checkbox">
+                        Usar regex
+                    </label>
+                    <div class="actions-row compact">
+                        <button class="button primary" type="submit">Salvar regra</button>
+                        <button id="clear-rule-form" class="button ghost" type="button">Limpar</button>
+                    </div>
+                </form>
+                <div id="rule-message" class="message hidden"></div>
+            </section>
+
+            <section class="section-block">
+                <div class="section-head">
+                    <h2>Categorias rapidas</h2>
+                    <button id="manage-open-page" class="button ghost" type="button">Abrir pagina completa</button>
+                </div>
+                <form id="category-form" class="inline-form">
+                    <input id="new-category-name" type="text" placeholder="Nova categoria" required>
+                    <button class="button primary" type="submit">Adicionar</button>
+                </form>
+                <datalist id="category-options"></datalist>
+                <div id="categories-list" class="tag-cloud"></div>
+                <div id="category-message" class="message hidden"></div>
+            </section>
+        </section>
+    </main>
+
+    <script src="bank-utils.js"></script>
+    <script src="storage-manager.js"></script>
+    <script src="sidebar.js"></script>
+</body>
+</html>

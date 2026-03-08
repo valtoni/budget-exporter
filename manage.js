@@ -523,13 +523,15 @@ function renderRulesPage(page, filteredRules = null) {
             th.style.cursor = 'pointer';
             th.classList.add('sortable-header');
             
-            let icon = 'bi-arrow-down-up';
+            let icon = '<span class="sort-indicator">↕</span>';
             if (currentSortCol === col.id) {
-                icon = currentSortDir === 'asc' ? 'bi-sort-alpha-down' : 'bi-sort-alpha-up-alt';
+                icon = currentSortDir === 'asc'
+                    ? '<span class="sort-indicator">A→Z</span>'
+                    : '<span class="sort-indicator">Z→A</span>';
                 th.classList.add('table-active');
             }
             
-            th.innerHTML = `${col.label} <i class="bi ${icon} ms-1 small text-muted"></i>`;
+            th.innerHTML = `${col.label} <span class="ms-1 small text-muted">${icon}</span>`;
             th.onclick = () => {
                 if (currentSortCol === col.id) {
                     currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
@@ -617,19 +619,19 @@ function renderRulesPage(page, filteredRules = null) {
 
         const editBtn = document.createElement('button');
         editBtn.className = 'btn btn-action-edit';
-        editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+        editBtn.textContent = 'Editar';
         editBtn.title = 'Alterar';
         editBtn.onclick = () => editRule(rule);
 
         const toggleBtn = document.createElement('button');
         toggleBtn.className = 'btn btn-action-toggle';
-        toggleBtn.innerHTML = rule.enabled ? '<i class="bi bi-toggle-on"></i>' : '<i class="bi bi-toggle-off"></i>';
+        toggleBtn.textContent = rule.enabled ? 'Desativar' : 'Ativar';
         toggleBtn.title = rule.enabled ? 'Desativar' : 'Ativar';
         toggleBtn.onclick = () => toggleRule(rule.id);
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'btn btn-action-remove';
-        removeBtn.innerHTML = '<i class="bi bi-trash"></i>';
+        removeBtn.textContent = 'Remover';
         removeBtn.title = 'Remover';
         removeBtn.onclick = () => removeRule(rule.id);
 

@@ -26,6 +26,34 @@ function Should-Exclude($relativePath, [string[]]$patterns) {
     return $false
 }
 
+function New-UniqueTempDir([string]$baseName) {
+    $candidate = Join-Path $env:TEMP ("{0}-{1}-{2}" -f $baseName, $PID, (Get-Date -Format "yyyyMMdd-HHmmssfff"))
+    if (Test-Path $candidate) {
+        Remove-Item $candidate -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $candidate | Out-Null
+    return $candidate
+}
+
+function Resolve-ArchivePath([string]$outputDir, [string]$preferredName, [string]$timestamp) {
+    $preferredPath = Join-Path $outputDir $preferredName
+
+    if (-not (Test-Path $preferredPath)) {
+        return @{ Path = $preferredPath; Name = $preferredName; UsedFallback = $false }
+    }
+
+    try {
+        Remove-Item -LiteralPath $preferredPath -Force -ErrorAction Stop
+        return @{ Path = $preferredPath; Name = $preferredName; UsedFallback = $false }
+    } catch {
+        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($preferredName)
+        $extension = [System.IO.Path]::GetExtension($preferredName)
+        $fallbackName = "$baseName-$timestamp$extension"
+        $fallbackPath = Join-Path $outputDir $fallbackName
+        return @{ Path = $fallbackPath; Name = $fallbackName; UsedFallback = $true }
+    }
+}
+
 # ----------------- Determine Version (manifest.json as source of truth) -----------------
 $manifestPath = Join-Path $sourceDir "manifest.json"
 if (-not (Test-Path $manifestPath)) {
@@ -49,8 +77,12 @@ if (-not (Test-Path $outputDir)) {
     Write-Host "Created 'dist' directory" -ForegroundColor Yellow
 }
 $zipName = "budget-exporter-v$pkgVersion.xpi"
-$zipPath = Join-Path $outputDir $zipName
-if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+$archiveInfo = Resolve-ArchivePath -outputDir $outputDir -preferredName $zipName -timestamp $timestamp
+$zipName = $archiveInfo.Name
+$zipPath = $archiveInfo.Path
+if ($archiveInfo.UsedFallback) {
+    Write-Host "WARNING: Existing archive is locked. Using fallback name: $zipName" -ForegroundColor Yellow
+}
 
 # ----------------- Exclusion rules -----------------
 $filesToExclude = @(
@@ -58,9 +90,7 @@ $filesToExclude = @(
 )
 
 # ----------------- Temporary directory -----------------
-$tempDir = Join-Path $env:TEMP "budget-exporter-build"
-if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-New-Item -ItemType Directory -Path $tempDir | Out-Null
+$tempDir = New-UniqueTempDir "budget-exporter-build"
 
 Write-Host ""
 Write-Host "Copying source files..." -ForegroundColor Yellow
@@ -133,7 +163,6 @@ Write-Host "Total files (temp): $fileCount" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Creating xpi archive ($zipName)..." -ForegroundColor Yellow
 try {
-    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
     # Use PowerShell to zip all files in tempDir with forward slashes internally.
     # We must change location to tempDir to ensure paths are relative and POSIX-style.
     $originalLocation = Get-Location
@@ -142,7 +171,7 @@ try {
     # In PowerShell, we can't easily force forward slashes in Compress-Archive.
     # So we'll use System.IO.Compression.ZipFile to have full control.
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $zip = [System.IO.Compression.ZipFile]::Open($zipPath, "Create")
+    $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
     
     Get-ChildItem -Recurse -File | ForEach-Object {
         $entryName = $_.FullName.Substring($tempDir.Length).TrimStart('\').Replace('\', '/')
@@ -153,7 +182,7 @@ try {
     Set-Location $originalLocation
     Write-Host "xpi successfully created with POSIX paths!" -ForegroundColor Green
 } catch {
-    Set-Location $originalLocation
+    if ($originalLocation) { Set-Location $originalLocation }
     Write-Host "ERROR while creating xpi: $_" -ForegroundColor Red
     Remove-Item $tempDir -Recurse -Force
     exit 1

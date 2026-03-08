@@ -1,97 +1,117 @@
 # Build Script - Budget Exporter
 
-Script PowerShell para criar pacote ZIP pronto para submissão na Mozilla Add-ons Store.
+Script PowerShell para gerar o pacote `.xpi` da extensao Firefox a partir da raiz do projeto.
 
-## Como Usar
-
-### 1. Executar o Script
+## Uso
 
 ```powershell
-# Na pasta raiz do projeto (onde está este README)
 .\build.ps1
 ```
 
-### 2. O que o script faz:
+## O que o script faz
 
-- Lê a versão do `manifest.json`
-- Cria pasta `dist/` se não existir
-- Copia apenas arquivos necessários
-- Exclui arquivos desnecessários (.git, node_modules, etc.)
-- Cria ZIP com nome versionado: `budget-exporter-v1.0.0-20250115-143022.zip`
-- Valida estrutura básica (manifest, ícones)
-- Exibe informações do pacote
-- Abre pasta `dist/` automaticamente
+- le a versao de `manifest.json`
+- cria `dist/` se necessario
+- copia somente os arquivos necessarios para o pacote
+- exclui documentacao, controle de versao, dependencias e temporarios
+- atualiza a versao exibida em `manage.html`
+- gera um `.xpi` com caminhos POSIX internos
+- valida se `manifest.json` e icones estao no pacote
+- abre `dist/` automaticamente fora de CI
 
-### 3. Resultado
+## Nome do arquivo gerado
 
+Nome preferido:
+
+```text
+budget-exporter-v1.2.0.xpi
 ```
+
+Se um arquivo com esse nome existir e estiver travado, o script usa fallback automatico com timestamp:
+
+```text
+budget-exporter-v1.2.0-YYYYMMDD-HHMMSS.xpi
+```
+
+Isso evita falha de build quando um pacote anterior esta aberto, bloqueado por antivirus, ou em uso por outra ferramenta.
+
+## Resultado esperado
+
+```text
 dist/
-└── budget-exporter-v1.0.0-20250115-143022.zip
+└── budget-exporter-v1.2.0.xpi
 ```
 
-## Arquivos Incluídos
+ou, em caso de fallback:
+
+```text
+dist/
+└── budget-exporter-v1.2.0-YYYYMMDD-HHMMSS.xpi
+```
+
+## Arquivos incluidos
 
 - `manifest.json`
-- `*.js` (todos os arquivos JavaScript)
-- `*.html` (todas as páginas HTML)
-- `*.css` (todos os estilos)
-- `*.svg` (ícones SVG)
-- `icons/` (pasta de ícones)
-- `content-scripts/` (scripts de conteúdo)
+- `*.js`
+- `*.html`
+- `*.css`
+- `icons/`
+- assets locais necessarios para a UI, como `bootstrap.min.css` e `bootstrap.bundle.min.js`
 
-## Arquivos Excluídos
+## Arquivos excluidos
 
-- `*.md` (documentação)
-- `*.txt` (arquivos de texto)
-- `.git*` (arquivos Git)
-- `node_modules/` (dependências)
-- `.DS_Store` (Mac)
-- `Thumbs.db` (Windows)
-- `*.log` (logs)
+- `*.md`
+- `*.txt`
+- `.git*`
+- `node_modules/`
+- `dist/`
+- `*.log`
+- `*.tmp`
+- `.idea/`
+- `*.ps1`
 
-## Solução de Problemas
+## Solucao de problemas
 
-### Erro: "Não é possível executar scripts"
+### Erro: nao e possivel executar scripts
 
-Execute primeiro:
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-### Erro: "manifest.json não encontrado"
+### Erro: manifest.json nao encontrado
 
-Certifique-se de estar na pasta raiz do projeto onde existe a pasta `budget-exporter/`.
+Execute o script na raiz do projeto, onde esta `manifest.json`.
 
-### ZIP muito grande
+### O arquivo `.xpi` antigo esta travado
 
-Verifique se não há arquivos desnecessários:
+Nao e mais necessario apagar manualmente. O script passa a gerar um novo nome com timestamp automaticamente.
+
+### Quero validar o conteudo do pacote
+
 ```powershell
-# Liste o conteúdo do ZIP
-Expand-Archive -Path dist\budget-exporter-*.zip -DestinationPath temp-check
+Expand-Archive -Path dist\budget-exporter-*.xpi -DestinationPath temp-check
 Get-ChildItem -Path temp-check -Recurse
 Remove-Item temp-check -Recurse
 ```
 
-## Após o Build
+## Teste local
 
-1. **Teste localmente:**
-   - Abra Firefox
-   - Digite `about:debugging` na barra de endereços
-   - Clique em "Este Firefox" → "Carregar extensão temporária"
-   - Selecione o arquivo ZIP criado
+1. Abra `about:debugging` no Firefox.
+2. Clique em `Este Firefox`.
+3. Clique em `Carregar extensao temporaria`.
+4. Selecione o arquivo `.xpi` gerado.
+5. Teste o fluxo da sidebar e a pagina `manage.html`.
 
-2. **Submeta para Mozilla:**
-   - Acesse: https://addons.mozilla.org/developers/
-   - Clique em "Submit a New Add-on"
-   - Faça upload do ZIP
-   - Preencha as informações solicitadas
+## Publicacao
 
-## Versioning
+1. Acesse https://addons.mozilla.org/developers/
+2. Envie o `.xpi` gerado
+3. Preencha metadados, privacidade e capturas de tela
 
-Para atualizar a versão:
+## Versionamento
 
-1. Edite `budget-exporter/manifest.json`
-2. Altere o campo `"version": "1.0.1"`
-3. Execute o script novamente
+1. Edite `manifest.json`
+2. Atualize `version`
+3. Rode `build.ps1`
 
-O nome do ZIP será atualizado automaticamente.
+O nome do `.xpi` sera atualizado automaticamente.

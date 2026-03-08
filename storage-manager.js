@@ -1,5 +1,6 @@
 // Gerenciador de storage para regras de Payee e categorias
 // Usado por todos os módulos da extensão
+var BudgetExporterRoot = typeof globalThis !== 'undefined' ? globalThis : self;
 const storageAPI = (typeof browser !== 'undefined' ? browser.storage : chrome.storage);
 const isFirefox = (typeof browser !== 'undefined');
 
@@ -91,7 +92,8 @@ const BudgetStorage = {
     KEYS: {
         PAYEE_RULES: 'payee_rules',      // Array de regras de correspondência de payee
         CATEGORIES: 'categories',         // Array de categorias disponíveis
-        ACCOUNTS: 'accounts'              // Array de contas disponíveis
+        ACCOUNTS: 'accounts',             // Array de contas disponíveis
+        SUGGESTION_HISTORY: 'suggestion_history'
     },
 
     /**
@@ -126,11 +128,15 @@ const BudgetStorage = {
 
         if (!data.accounts) {
             // Contas pré-configuradas a partir de BankUtils.ACCOUNTS
-            const defaultAccounts = Object.values(window.BankUtils.ACCOUNTS).map(acc => ({
+            const defaultAccounts = Object.values(BudgetExporterRoot.BankUtils.ACCOUNTS).map(acc => ({
                 id: acc.id,
                 name: acc.name
             }));
             await this.setAccounts(defaultAccounts);
+        }
+
+        if (!data.suggestion_history || typeof data.suggestion_history !== 'object') {
+            await this.setSuggestionHistory({});
         }
 
         // Migração de regras: garantir categoryId baseado no nome (se existir)
@@ -360,6 +366,63 @@ const BudgetStorage = {
                 });
             });
         }
+    },
+
+    async getSuggestionHistory() {
+        if (isFirefox) {
+            const items = await storageAPI.local.get(this.KEYS.SUGGESTION_HISTORY);
+            return items[this.KEYS.SUGGESTION_HISTORY] || {};
+        }
+
+        return new Promise((resolve) => {
+            storageAPI.local.get(this.KEYS.SUGGESTION_HISTORY, (items) => {
+                resolve(items[this.KEYS.SUGGESTION_HISTORY] || {});
+            });
+        });
+    },
+
+    async setSuggestionHistory(history) {
+        const safeHistory = (history && typeof history === 'object') ? history : {};
+
+        if (isFirefox) {
+            await storageAPI.local.set({ [this.KEYS.SUGGESTION_HISTORY]: safeHistory });
+        } else {
+            return new Promise((resolve, reject) => {
+                storageAPI.local.set({ [this.KEYS.SUGGESTION_HISTORY]: safeHistory }, () => {
+                    const err = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) ? chrome.runtime.lastError : null;
+                    if (err) {
+                        reject(new Error(err.message || String(err)));
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+        }
+    },
+
+    async recordSuggestionObservations(observations) {
+        const history = await this.getSuggestionHistory();
+        const now = new Date().toISOString();
+
+        for (const observation of (Array.isArray(observations) ? observations : [])) {
+            if (!observation || !observation.key) continue;
+
+            const existing = history[observation.key] || {};
+            history[observation.key] = {
+                key: observation.key,
+                accountId: observation.accountId || existing.accountId || '',
+                count: Number(existing.count || 0) + Number(observation.count || 0),
+                samplePayee: observation.samplePayee || existing.samplePayee || '',
+                lastSeenAt: now
+            };
+        }
+
+        const entries = Object.entries(history)
+            .sort((a, b) => String(b[1].lastSeenAt || '').localeCompare(String(a[1].lastSeenAt || '')));
+        const trimmed = Object.fromEntries(entries.slice(0, 500));
+
+        await this.setSuggestionHistory(trimmed);
+        return trimmed;
     },
 
     /**
@@ -637,7 +700,5 @@ const BudgetStorage = {
 };
 
 // Exporta para o escopo global
-if (typeof window !== 'undefined') {
-    window.StorageManager = BudgetStorage;
-    window.BudgetStorage = BudgetStorage; // Mantém compatibilidade
-}
+BudgetExporterRoot.StorageManager = BudgetStorage;
+BudgetExporterRoot.BudgetStorage = BudgetStorage;

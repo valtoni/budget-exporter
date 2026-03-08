@@ -1,321 +1,196 @@
 # Budget Exporter
 
-Uma extensão para Firefox que simplifica drasticamente a exportação de transações bancárias para o formato CSV compatível com YNAB (You Need A Budget).
+Uma extensao para Firefox que extrai transacoes de paginas bancarias suportadas, aplica padronizacao local de payees, sugere categorias de forma deterministica e exporta CSV revisado para o YNAB.
 
-## 🎯 Motivação
+## Visao Geral
 
-Gerenciar finanças pessoais é essencial, mas a tarefa de importar transações bancárias para ferramentas de orçamento como o YNAB pode ser extremamente **tediosa e propensa a erros**.
+O projeto foi modernizado para Firefox com Manifest V3 e passou a usar um fluxo de revisao antes da exportacao:
 
-### O Problema
+1. abrir a pagina do banco no Firefox
+2. clicar no icone da extensao
+3. revisar as transacoes na sidebar
+4. ajustar payee, categoria e memo quando necessario
+5. criar regras novas a partir de sugestoes locais
+6. exportar o CSV revisado
 
-Sem esta extensão, o processo manual envolve:
+Nada depende de IA, nuvem ou processamento remoto. Tudo e feito localmente no navegador, com JavaScript e `browser.storage.local`.
 
-1. **Acessar múltiplos sites bancários** - Login em cada banco individualmente
-2. **Navegar por interfaces inconsistentes** - Cada banco tem sua própria estrutura
-3. **Exportar transações** - Geralmente em formatos incompatíveis (OFX, PDF, CSV proprietário)
-4. **Converter formatos** - Usar ferramentas externas ou planilhas
-5. **Padronizar nomes** - Limpar e normalizar descrições de comerciantes
-   - "NETFLIX.COM*ASSINATU" → "Netflix"
-   - "UBER *TRIP 12345678" → "Uber"
-   - "PAG*MERCADO123456" → "Supermercado"
-6. **Categorizar manualmente** - Atribuir categorias para cada transação
-7. **Importar no YNAB** - Upload e validação final
+## Principais Funcionalidades
 
-**Tempo estimado:** 15-30 minutos por banco, por mês
-**Erros comuns:** Duplicatas, categorizações erradas, formatação inconsistente
-**Frustração:** Alta 😤
+### Sidebar de revisao
+- mostra a conta detectada e o resumo da extracao
+- lista transacoes com status visual: com regra, sugestao, sem regra
+- permite editar payee, categoria e memo antes da exportacao
+- exporta apenas os itens selecionados
 
-### A Solução
+### Sugestoes locais sem IA
+- normaliza descricoes nao reconhecidas
+- agrupa recorrencias da pagina atual
+- acumula historico local de sugestoes ainda nao transformadas em regra
+- sugere novas regras quando houver evidencia suficiente
+- permite clicar na sugestao e abrir o formulario de regra ja preenchido
 
-Com o Budget Exporter, o processo se resume a:
+### Motor de regras
+- regras por conta e regras globais
+- padrao por texto simples ou regex
+- substituicao de payee
+- categoria opcional
+- template de memo para regex com grupos de captura
 
-1. **Abrir a página do banco** no Firefox
-2. **Clicar no ícone da extensão**
-3. **Baixar CSV pronto** - Formatado, categorizado e padronizado
+### Pagina de gerenciamento
+- continua disponivel em `manage.html`
+- usada para manutencao mais completa de regras, categorias e contas
+- suporta importacao e exportacao da base local
 
-**Tempo estimado:** 30 segundos
-**Erros:** Praticamente zero
-**Frustração:** Nenhuma 😊
+## Arquitetura Atual
 
-## ✨ Principais Funcionalidades
+### Manifest V3
+- `manifest.json` usa `manifest_version: 3`
+- `background.js` roda como `service_worker`
+- `action` abre a sidebar operacional
+- `sidebar_action` aponta para `sidebar.html`
+- `host_permissions` controlam acesso aos bancos suportados
 
-### Automação Inteligente
-- Extração automática de transações diretamente da página do banco
-- Conversão instantânea para formato CSV compatível com YNAB
-- Detecção automática do banco baseada na URL
+### Componentes principais
+- `content.js`: extrai a pagina atual e monta o estado de revisao
+- `bank-utils.js`: deteccao de conta, normalizacao, sugestoes e geracao de CSV
+- `storage-manager.js`: persistencia local de regras, categorias, contas e historico de sugestoes
+- `sidebar.html`, `sidebar.js`, `sidebar.css`: interface operacional do dia a dia
+- `manage.html`, `manage.js`, `manage.css`: administracao completa
 
-### Gerenciamento de Regras
-- **Regras de Payee**: Transforme descrições confusas em nomes limpos
-  - Suporte a texto simples e expressões regulares (regex)
-  - Substituição automática com grupos de captura
-- **Categorização Automática**: Atribua categorias baseadas em padrões
-- **Templates de Memo**: Adicione informações contextuais personalizadas
+### Estrutura do projeto
 
-### Interface Amigável
-- Página de gerenciamento integrada com Bootstrap 5.3
-- Pesquisa em tempo real de regras
-- Campos pesquisáveis para bancos e categorias
-- Paginação automática para grandes volumes de regras
-- Design responsivo e intuitivo
-
-### Suporte a Múltiplos Bancos
-- Configuração flexível por banco
-- Regras específicas ou globais (aplicáveis a todos os bancos)
-- Fácil adição de novos bancos
-
-## 🚀 Como Usar
-
-1. **Instale a extensão** no Firefox
-2. **Configure suas regras** (opcional):
-   - Clique no ícone da extensão
-   - Acesse "Gerenciar Regras"
-   - Adicione bancos, categorias e regras de payee
-3. **Acesse seu banco online**
-4. **Clique no ícone da extensão**
-5. **Baixe o CSV** - Pronto para importar no YNAB!
-
-## 🛠️ Desenvolvimento
-
-### Tecnologias Utilizadas
-
-#### Frontend
-- **HTML5** - Estrutura semântica
-- **CSS3** - Estilização personalizada
-- **Bootstrap 5.3** - Framework CSS para UI moderna e responsiva
-- **Bootstrap Icons** - Ícones vetoriais SVG
-
-#### JavaScript
-- **Vanilla JavaScript (ES6+)** - Sem dependências externas
-  - Promises e Async/Await
-  - Modules ES6
-  - Arrow Functions
-  - Destructuring
-  - Template Literals
-- **Web Extensions API** (Firefox)
-  - `browser.storage.local` - Armazenamento persistente
-  - `browser.tabs` - Manipulação de abas
-  - `browser.runtime` - Comunicação entre componentes
-  - Content Scripts - Injeção de código nas páginas
-
-#### Arquitetura
-- **Content Scripts** - Executam no contexto das páginas web
-  - Extraem dados do DOM
-  - Detectam banco automaticamente
-  - Aplicam regras de transformação
-- **Background Scripts** - Gerenciam eventos globais
-- **Popup UI** - Interface principal da extensão
-- **Management Page** - Página dedicada para configurações
-
-### Estrutura do Projeto
-
-```
+```text
 budget-exporter/
-├── manifest.json              # Configuração da extensão
-├── background.js              # Script de background
-├── popup.html                 # Interface principal
-├── popup.js                   # Lógica do popup
-├── manage.html                # Página de gerenciamento
-├── manage.js                  # Lógica de gerenciamento (paginação, pesquisa)
-├── manage.css                 # Estilos customizados
-├── storage-manager.js         # Abstração do storage
-├── icon.svg                   # Ícone principal
-├── icons/                     # Ícones da extensão
-│   ├── icon.svg               # Ícone principal (colorido)
-│   └── page_action.svg        # Ícone de ação (colorido)
-└── content-scripts/           # Scripts por banco
-    ├── koho.js                # Extrator Koho
-    ├── desjardins.js          # Extrator Desjardins
-    └── ...                    # Outros bancos
+├── manifest.json
+├── background.js
+├── content.js
+├── bank-utils.js
+├── storage-manager.js
+├── sidebar.html
+├── sidebar.js
+├── sidebar.css
+├── manage.html
+├── manage.js
+├── manage.css
+├── bootstrap.min.css
+├── bootstrap.bundle.min.js
+├── strategy-desjardins-bankaccount.js
+├── strategy-desjardins-creditcard.js
+├── strategy-koho-bankaccount.js
+├── icons/
+└── build.ps1
 ```
 
-### Padrões de Código
+## Fluxo de Revisao
 
-#### Storage Manager
-Abstração para gerenciamento de dados:
+### Quando uma regra existente encontra o payee
+- o payee final ja vem preenchido
+- a categoria pode vir preenchida
+- o motivo do match aparece na sidebar
+
+### Quando nao ha regra
+- a transacao fica marcada como `Sem regra`
+- se houver recorrencia suficiente, ela pode virar `Sugestao`
+- o usuario pode criar uma regra nova direto da transacao ou da sugestao
+
+### Criterios atuais de sugestao
+- pelo menos 2 ocorrencias na pagina atual, ou
+- pelo menos 3 ocorrencias acumuladas no historico local
+
+As sugestoes sao conservadoras para reduzir ruido.
+
+## Como Usar
+
+### Instalar para teste local
+
+1. rode `build.ps1` ou carregue a pasta em `about:debugging`
+2. abra `about:debugging`
+3. selecione `Este Firefox`
+4. clique em `Carregar extensao temporaria`
+5. escolha `manifest.json` ou o `.xpi` gerado
+
+### Configurar regras
+
+1. abra a extensao
+2. use a sidebar para revisar e criar regras rapidas
+3. abra `manage.html` quando precisar editar em massa, importar ou exportar dados
+
+### Exportar para YNAB
+
+1. abra a pagina do banco suportado
+2. clique no icone da extensao
+3. revise os itens na sidebar
+4. deixe selecionadas apenas as transacoes desejadas
+5. clique em `Exportar selecionados`
+
+## Bancos Suportados
+
+- Desjardins - Bank Account
+- Desjardins - Credit Card
+- Koho - Prepaid Card
+
+## Desenvolvimento
+
+### Stack
+- HTML5
+- CSS3
+- JavaScript ES6+
+- Firefox WebExtensions API
+- Bootstrap local apenas para `manage.html`
+
+### Persistencia local
+- `payee_rules`
+- `categories`
+- `accounts`
+- `suggestion_history`
+
+### Exemplo de regra
+
 ```javascript
-await StorageManager.init();
-const rules = await StorageManager.getPayeeRules();
-await StorageManager.addPayeeRule({ pattern, replacement, category });
+await StorageManager.addPayeeRule({
+  accountId: 2,
+  pattern: 'NETFLIX',
+  replacement: 'Netflix',
+  category: 'Assinaturas',
+  isRegex: false,
+  memoTemplate: ''
+});
 ```
 
-#### Regras de Payee
-Estrutura de dados:
-```javascript
-{
-  id: Number,              // Timestamp único
-  bankId: Number,          // ID do banco (0 = todos)
-  pattern: String,         // Texto ou regex
-  replacement: String,     // Novo payee
-  category: String,        // Categoria YNAB
-  isRegex: Boolean,        // Usa regex?
-  memoTemplate: String,    // Template com \1, \2, etc.
-  enabled: Boolean         // Ativa/desativa
-}
-```
+## Build e Distribuicao
 
-#### Content Scripts
-Cada banco tem seu próprio extrator:
-```javascript
-function extractTransactions() {
-  // 1. Seleciona elementos DOM
-  // 2. Extrai dados (data, payee, valor)
-  // 3. Aplica regras de transformação
-  // 4. Retorna array de transações
-}
-```
+Execute:
 
-### Build e Distribuição
-
-#### Requisitos
-- PowerShell 5.1+ (Windows)
-- Firefox Developer Edition (recomendado para testes)
-
-#### Build Automatizado
-
-Execute o script de build:
 ```powershell
 .\build.ps1
 ```
 
-O script automaticamente:
-1. Lê a versão do `manifest.json`
-2. Cria diretório `dist/`
-3. Copia apenas arquivos necessários
-4. Exclui arquivos desnecessários (.git, .md, node_modules)
-5. Gera ZIP versionado: `budget-exporter-v1.0.0-YYYYMMDD-HHMMSS.zip`
-6. Valida estrutura básica
-7. Exibe informações do pacote
-8. Abre pasta `dist/` automaticamente
+O script:
+- le a versao do manifesto
+- monta o pacote `.xpi`
+- usa nome fallback com timestamp se o arquivo anterior estiver travado
+- valida `manifest.json` e icones
 
-#### Estrutura do Pacote
+Leia tambem: [README-BUILD.md](README-BUILD.md)
 
-O ZIP inclui apenas:
-- `manifest.json`
-- Arquivos JavaScript (`.js`)
-- Arquivos HTML (`.html`)
-- Arquivos CSS (`.css`)
-- Ícones (`.svg`, pasta `icons/`)
-- Content scripts (pasta `content-scripts/`)
+## Extensibilidade
 
-Excluídos do pacote:
-- Documentação (`.md`)
-- Controle de versão (`.git`)
-- Arquivos temporários (`.log`, `.tmp`)
-- Arquivos do sistema (`.DS_Store`, `Thumbs.db`)
+### Adicionar novo banco
 
-#### Teste Local
+1. crie um novo arquivo `strategy-<conta>.js`
+2. implemente `extractTransactions()`
+3. implemente `toCsv()` usando `BankUtils.toCsv(...)`
+4. adicione o host em `manifest.json`
+5. registre a conta em `bank-utils.js`
 
-Antes de publicar:
-```
-1. Firefox → about:debugging
-2. "Este Firefox" → "Carregar extensão temporária"
-3. Selecionar o ZIP gerado
-4. Testar todas as funcionalidades
-```
+## Roadmap atual
 
-#### Submissão para Mozilla
+- melhorar supressao manual de sugestoes ruidosas
+- ampliar bancos suportados
+- melhorar documentacao em EN e FR para refletir a arquitetura MV3 atual
+- adicionar testes automatizados para normalizacao e sugestoes
 
-1. **Acesse:** https://addons.mozilla.org/developers/
-2. **Submit a New Add-on**
-3. **Escolha o tipo:**
-   - **Listed**: Aparece na loja oficial (revisão manual)
-   - **Self-distributed**: Distribuição própria (revisão automática)
-4. **Upload do ZIP** gerado pelo build script
-5. **Preencha informações:**
-   - Nome, descrição, categoria
-   - Screenshots (opcional mas recomendado)
-   - Notas de privacidade
-6. **Aguarde aprovação** (listadas) ou **assinatura automática** (self-distributed)
+## Licenca
 
-### Funcionalidades Técnicas Avançadas
-
-#### Pesquisa em Tempo Real
-- Filtragem de regras conforme digitação
-- Validação visual (vermelho para < 3 caracteres)
-- Debounce automático
-
-#### Dropdowns Pesquisáveis
-- Input + Dropdown combinados
-- Filtragem dinâmica de opções
-- Suporte a teclado (Ctrl+F para pesquisa global)
-
-#### Paginação Inteligente
-- 10 itens por página (configurável)
-- Navegação anterior/próximo
-- Ajuste automático ao remover itens
-- Reset ao adicionar/editar
-
-#### Validação de Formulários
-- Verificação de banco obrigatório
-- Validação de regex
-- Feedback visual de erros
-- Prevenção de duplicatas
-
-### Extensibilidade
-
-#### Adicionar Novo Banco
-
-1. **Criar content script:**
-```javascript
-// content-scripts/novo-banco.js
-function extractTransactions() {
-  const transactions = [];
-  // Sua lógica de extração aqui
-  return transactions;
-}
-```
-
-2. **Registrar no manifest.json:**
-```json
-{
-  "matches": ["*://*.novobanco.com/*"],
-  "js": ["content-scripts/novo-banco.js"]
-}
-```
-
-3. **Adicionar na interface:**
-   - Manage → Bancos → Adicionar "Novo Banco"
-
-#### Customizar Formato de Saída
-
-Edite a função de conversão para CSV em cada content script:
-```javascript
-function convertToYNABFormat(transactions) {
-  // Modifique conforme necessário
-  return csvString;
-}
-```
-
-## 📝 Roadmap
-
-Funcionalidades planejadas:
-- [ ] Suporte para Chrome/Edge
-- [ ] Importação/Exportação de regras
-- [ ] Sincronização na nuvem (opcional)
-- [ ] Detecção automática de duplicatas
-- [ ] Dashboard com estatísticas
-- [ ] Modo escuro
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Para adicionar suporte a um novo banco:
-
-1. Fork o repositório
-2. Crie seu content script em `content-scripts/`
-3. Teste localmente
-4. Envie um Pull Request
-
-## 📄 Licença
-
-Este projeto é de código aberto. Consulte o arquivo LICENSE para detalhes.
-
-## 🙏 Agradecimentos
-
-- **YNAB** - Pela incrível ferramenta de orçamento
-- **Bootstrap Team** - Pelo framework UI
-- **Mozilla** - Pela plataforma de extensões robusta
-- **Comunidade Open Source** - Por inspiração e feedback
-
----
-
-Desenvolvido com ❤️ por Valtoni Boaventura para simplificar sua vida financeira.
+Projeto de codigo aberto. Consulte o arquivo de licenca se aplicavel.
