@@ -1,57 +1,52 @@
 # Build Script - Budget Exporter
 
-Script PowerShell para gerar o pacote `.xpi` da extensao Firefox a partir da raiz do projeto.
+Script PowerShell para gerar os pacotes da extensao (Firefox `.xpi`, Chrome/Edge `.zip`) a partir da raiz do projeto.
 
 ## Uso
 
 ```powershell
+# default: Firefox
 .\build.ps1
+
+# alvo especifico
+.\build.ps1 -Target firefox
+.\build.ps1 -Target chrome
+.\build.ps1 -Target edge
+
+# todos os alvos de uma vez
+.\build.ps1 -Target all
 ```
 
 ## O que o script faz
 
-- le a versao de `manifest.json`
+- le a versao de `manifest.firefox.json`
 - cria `dist/` se necessario
-- copia somente os arquivos necessarios para o pacote
-- exclui documentacao, controle de versao, dependencias e temporarios
-- atualiza a versao exibida em `manage.html`
-- gera um `.xpi` com caminhos POSIX internos
-- valida se `manifest.json` e icones estao no pacote
+- para cada alvo:
+  - copia somente os arquivos necessarios para o pacote
+  - exclui documentacao, controle de versao, dependencias, temporarios e os manifests `manifest.firefox.json` / `manifest.chrome.json`
+  - usa o manifest correto (`manifest.firefox.json` ou `manifest.chrome.json`) e o renomeia para `manifest.json` no pacote
+  - atualiza a versao exibida em `manage.html`
+  - gera `.xpi` (Firefox) ou `.zip` (Chrome/Edge) com caminhos POSIX internos
+  - valida se `manifest.json` e icones estao no pacote
 - abre `dist/` automaticamente fora de CI
 
-## Nome do arquivo gerado
-
-Nome preferido:
+## Nomes dos arquivos gerados
 
 ```text
-budget-exporter-v1.2.0.xpi
+budget-exporter-v1.3.0-firefox.xpi
+budget-exporter-v1.3.0-chrome.zip
+budget-exporter-v1.3.0-edge.zip
 ```
 
-Se um arquivo com esse nome existir e estiver travado, o script usa fallback automatico com timestamp:
+Se um arquivo com o mesmo nome existir e estiver travado, o script usa fallback automatico com timestamp:
 
 ```text
-budget-exporter-v1.2.0-YYYYMMDD-HHMMSS.xpi
-```
-
-Isso evita falha de build quando um pacote anterior esta aberto, bloqueado por antivirus, ou em uso por outra ferramenta.
-
-## Resultado esperado
-
-```text
-dist/
-└── budget-exporter-v1.2.0.xpi
-```
-
-ou, em caso de fallback:
-
-```text
-dist/
-└── budget-exporter-v1.2.0-YYYYMMDD-HHMMSS.xpi
+budget-exporter-v1.3.0-firefox-YYYYMMDD-HHMMSS.xpi
 ```
 
 ## Arquivos incluidos
 
-- `manifest.json`
+- `manifest.json` (derivado do `manifest.firefox.json` ou `manifest.chrome.json`)
 - `*.js`
 - `*.html`
 - `*.css`
@@ -60,15 +55,12 @@ dist/
 
 ## Arquivos excluidos
 
-- `*.md`
-- `*.txt`
+- `*.md`, `*.txt`
 - `.git*`
-- `node_modules/`
-- `dist/`
-- `*.log`
-- `*.tmp`
-- `.idea/`
+- `node_modules/`, `dist/`
+- `*.log`, `*.tmp`, `.idea/`
 - `*.ps1`
+- `manifest.firefox.json`, `manifest.chrome.json` (o script injeta apenas um, como `manifest.json`)
 
 ## Solucao de problemas
 
@@ -78,40 +70,50 @@ dist/
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-### Erro: manifest.json nao encontrado
+### Erro: manifest.firefox.json nao encontrado
 
-Execute o script na raiz do projeto, onde esta `manifest.json`.
-
-### O arquivo `.xpi` antigo esta travado
-
-Nao e mais necessario apagar manualmente. O script passa a gerar um novo nome com timestamp automaticamente.
+Execute o script na raiz do projeto, onde estao `manifest.firefox.json` e `manifest.chrome.json`.
 
 ### Quero validar o conteudo do pacote
 
 ```powershell
-Expand-Archive -Path dist\budget-exporter-*.xpi -DestinationPath temp-check
+Expand-Archive -Path dist\budget-exporter-*-firefox.xpi -DestinationPath temp-check
 Get-ChildItem -Path temp-check -Recurse
 Remove-Item temp-check -Recurse
 ```
 
 ## Teste local
 
-1. Abra `about:debugging` no Firefox.
+### Firefox
+
+1. Abra `about:debugging`.
 2. Clique em `Este Firefox`.
 3. Clique em `Carregar extensao temporaria`.
-4. Selecione o arquivo `.xpi` gerado.
-5. Teste o fluxo da sidebar e a pagina `manage.html`.
+4. Selecione o `.xpi` gerado.
+
+### Chrome
+
+1. Abra `chrome://extensions`.
+2. Ative `Modo de desenvolvedor` (canto superior direito).
+3. Descompacte o `.zip` em uma pasta.
+4. Clique em `Carregar sem compactacao` e selecione a pasta.
+
+### Edge
+
+1. Abra `edge://extensions`.
+2. Ative `Modo de desenvolvedor`.
+3. Descompacte o `.zip` em uma pasta.
+4. Clique em `Carregar sem compactacao` e selecione a pasta.
 
 ## Publicacao
 
-1. Acesse https://addons.mozilla.org/developers/
-2. Envie o `.xpi` gerado
-3. Preencha metadados, privacidade e capturas de tela
+- Firefox: envie o `.xpi` em https://addons.mozilla.org/developers/
+- Chrome: envie o `.zip` no Chrome Web Store (https://chrome.google.com/webstore/devconsole)
+- Edge: envie o `.zip` no Microsoft Edge Add-ons (https://partner.microsoft.com/dashboard/microsoftedge)
 
 ## Versionamento
 
-1. Edite `manifest.json`
-2. Atualize `version`
-3. Rode `build.ps1`
+1. Edite `manifest.firefox.json` e `manifest.chrome.json` atualizando `version` nos dois (devem coincidir).
+2. Rode `.\build.ps1 -Target all`.
 
-O nome do `.xpi` sera atualizado automaticamente.
+Os nomes dos arquivos serao atualizados automaticamente.

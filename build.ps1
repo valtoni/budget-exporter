@@ -1,7 +1,15 @@
 # ================================================================
-# Budget Exporter - Build Script (for Mozilla Add-ons)
-# Creates a ready-to-upload ZIP package
+# Budget Exporter - Build Script (Firefox / Chrome / Edge)
+# Creates ready-to-install packages (.xpi for Firefox, .zip for Chromium)
 # ================================================================
+
+param(
+    [ValidateSet('firefox','chrome','edge','all')]
+    [string]$Target = 'firefox'
+)
+
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host "  Budget Exporter - Build Script" -ForegroundColor Cyan
@@ -54,174 +62,197 @@ function Resolve-ArchivePath([string]$outputDir, [string]$preferredName, [string
     }
 }
 
-# ----------------- Determine Version (manifest.json as source of truth) -----------------
-$manifestPath = Join-Path $sourceDir "manifest.json"
-if (-not (Test-Path $manifestPath)) {
-    Write-Host "ERROR: manifest.json not found in source directory!" -ForegroundColor Red
+# ----------------- Read version from source manifest -----------------
+# Firefox variant is the canonical source of the version (both manifests must share it).
+$manifestSourcePath = Join-Path $sourceDir "manifest.firefox.json"
+if (-not (Test-Path $manifestSourcePath)) {
+    Write-Host "ERROR: manifest.firefox.json not found in source directory!" -ForegroundColor Red
     exit 1
 }
 
-$manifestContent = Get-Content $manifestPath -Raw | ConvertFrom-Json
+$manifestContent = Get-Content $manifestSourcePath -Raw | ConvertFrom-Json
 $pkgVersion = $manifestContent.version
 
 if ([string]::IsNullOrWhiteSpace($pkgVersion)) {
-    Write-Host "WARNING: Version not found in manifest.json. Using timestamp: $timestamp" -ForegroundColor Yellow
+    Write-Host "WARNING: Version not found in manifest.firefox.json. Using timestamp: $timestamp" -ForegroundColor Yellow
     $pkgVersion = $timestamp
 } else {
-    Write-Host "Version from manifest.json: $pkgVersion" -ForegroundColor Green
+    Write-Host "Version from manifest.firefox.json: $pkgVersion" -ForegroundColor Green
 }
 
-# ----------------- Prepare output paths -----------------
+# ----------------- Prepare output directory -----------------
 if (-not (Test-Path $outputDir)) {
     New-Item -ItemType Directory -Path $outputDir | Out-Null
     Write-Host "Created 'dist' directory" -ForegroundColor Yellow
 }
-$zipName = "budget-exporter-v$pkgVersion.xpi"
-$archiveInfo = Resolve-ArchivePath -outputDir $outputDir -preferredName $zipName -timestamp $timestamp
-$zipName = $archiveInfo.Name
-$zipPath = $archiveInfo.Path
-if ($archiveInfo.UsedFallback) {
-    Write-Host "WARNING: Existing archive is locked. Using fallback name: $zipName" -ForegroundColor Yellow
-}
 
 # ----------------- Exclusion rules -----------------
 $filesToExclude = @(
-    "*.md","*.txt",".git*","node_modules",".DS_Store","Thumbs.db","*.log","*.tmp","dist","*.ps1",".idea*", "dist*", "node_modules*"
+    "*.md","*.txt",".git*","node_modules",".DS_Store","Thumbs.db","*.log","*.tmp","dist","*.ps1",".idea*", "dist*", "node_modules*",
+    "manifest.firefox.json","manifest.chrome.json"
 )
 
-# ----------------- Temporary directory -----------------
-$tempDir = New-UniqueTempDir "budget-exporter-build"
-
-Write-Host ""
-Write-Host "Copying source files..." -ForegroundColor Yellow
-
-# Copy files excluding unwanted patterns (PS 5.1-friendly)
-$srcRoot = (Resolve-Path $sourceDir).Path
-Get-ChildItem -Path $sourceDir -Recurse -File | ForEach-Object {
-    $full = $_.FullName
-    # Compute relative path without PS7-only switches
-    $rel  = $full.Substring($srcRoot.Length).TrimStart('\','/').Replace('\', '/')
-    if (-not (Should-Exclude $rel $filesToExclude)) {
-        $target    = Join-Path $tempDir $rel.Replace('/', '\')
-        $targetDir = Split-Path $target -Parent
-        if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir | Out-Null }
-        Copy-Item -LiteralPath $full -Destination $target -Force
-    }
-}
-
-# ----------------- Update manage.html (.version element) -----------------
-$managePath = (Join-Path $tempDir "manage.html")
-
-if (Test-Path $managePath) {
-$html = Get-Content $managePath -Raw -Encoding UTF8
-
-# Replace the inner text of any element that has class="... version ..."
-# Using single-quoted regex so backslashes are literal; \b and backref \k<tag> are preserved.
-$pattern = @'
-<(?<tag>\w+)(?<attrs>[^>]*\bclass=("|')[^"\']*\bversion\b[^"\']*("|\')[^>]*)>(?<inner>.*?)</\k<tag>\s*>
-'@
-    $options = [System.Text.RegularExpressions.RegexOptions]::Singleline
-
-    $newHtml = [System.Text.RegularExpressions.Regex]::Replace(
-        $html,
-        $pattern,
-        {
-            param($m)
-            "<$($m.Groups['tag'].Value)$($m.Groups['attrs'].Value)>$pkgVersion</$($m.Groups['tag'].Value)>"
-        },
-        $options
+function New-Package {
+    param(
+        [Parameter(Mandatory=$true)][string]$TargetName,
+        [Parameter(Mandatory=$true)][string]$PkgVersion,
+        [Parameter(Mandatory=$true)][string]$SourceDir,
+        [Parameter(Mandatory=$true)][string]$OutputDir,
+        [Parameter(Mandatory=$true)][string]$Timestamp,
+        [Parameter(Mandatory=$true)][string[]]$FilesToExclude
     )
 
-    if ($newHtml -ne $html) {
-        Set-Content -LiteralPath $managePath -Value $newHtml -Encoding UTF8
-        Write-Host "manage.html: version updated -> $pkgVersion" -ForegroundColor Green
+    # Extension + source manifest per target
+    switch ($TargetName) {
+        'firefox' { $archiveExt = 'xpi'; $manifestSrc = 'manifest.firefox.json' }
+        'chrome'  { $archiveExt = 'zip'; $manifestSrc = 'manifest.chrome.json'  }
+        'edge'    { $archiveExt = 'zip'; $manifestSrc = 'manifest.chrome.json'  }
+    }
+
+    $manifestSourcePath = Join-Path $SourceDir $manifestSrc
+    if (-not (Test-Path $manifestSourcePath)) {
+        Write-Host "ERROR: $manifestSrc not found for target '$TargetName'" -ForegroundColor Red
+        return
+    }
+
+    Write-Host ""
+    Write-Host "------------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  Building target: $TargetName ($manifestSrc)" -ForegroundColor Cyan
+    Write-Host "------------------------------------------------" -ForegroundColor Cyan
+
+    $zipName = "budget-exporter-v$PkgVersion-$TargetName.$archiveExt"
+    $archiveInfo = Resolve-ArchivePath -outputDir $OutputDir -preferredName $zipName -timestamp $Timestamp
+    $zipName = $archiveInfo.Name
+    $zipPath = $archiveInfo.Path
+    if ($archiveInfo.UsedFallback) {
+        Write-Host "WARNING: Existing archive is locked. Using fallback name: $zipName" -ForegroundColor Yellow
+    }
+
+    $tempDir = New-UniqueTempDir "budget-exporter-build-$TargetName"
+
+    Write-Host "Copying source files..." -ForegroundColor Yellow
+    $srcRoot = (Resolve-Path $SourceDir).Path
+    Get-ChildItem -Path $SourceDir -Recurse -File | ForEach-Object {
+        $full = $_.FullName
+        $rel  = $full.Substring($srcRoot.Length).TrimStart('\','/').Replace('\', '/')
+        if (-not (Should-Exclude $rel $FilesToExclude)) {
+            $target    = Join-Path $tempDir $rel.Replace('/', '\')
+            $targetDir = Split-Path $target -Parent
+            if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir | Out-Null }
+            Copy-Item -LiteralPath $full -Destination $target -Force
+        }
+    }
+
+    # Copy the browser-specific manifest into the package as manifest.json
+    $manifestTempPath = Join-Path $tempDir "manifest.json"
+    Copy-Item -LiteralPath $manifestSourcePath -Destination $manifestTempPath -Force
+
+    # ----- Update manage.html (.version element) -----
+    $managePath = (Join-Path $tempDir "manage.html")
+    if (Test-Path $managePath) {
+        $html = Get-Content $managePath -Raw -Encoding UTF8
+
+        # Replace the inner text of any element that has class="... version ..."
+        $pattern = @'
+<(?<tag>\w+)(?<attrs>[^>]*\bclass=("|')[^"\']*\bversion\b[^"\']*("|\')[^>]*)>(?<inner>.*?)</\k<tag>\s*>
+'@
+        $options = [System.Text.RegularExpressions.RegexOptions]::Singleline
+
+        $newHtml = [System.Text.RegularExpressions.Regex]::Replace(
+            $html,
+            $pattern,
+            {
+                param($m)
+                "<$($m.Groups['tag'].Value)$($m.Groups['attrs'].Value)>$PkgVersion</$($m.Groups['tag'].Value)>"
+            },
+            $options
+        )
+
+        if ($newHtml -ne $html) {
+            Set-Content -LiteralPath $managePath -Value $newHtml -Encoding UTF8
+            Write-Host "manage.html: version updated -> $PkgVersion" -ForegroundColor Green
+        } else {
+            Write-Host "WARNING: Could not find an element with class='version' in manage.html" -ForegroundColor Yellow
+        }
     } else {
-        Write-Host "WARNING: Could not find an element with class='version' in manage.html" -ForegroundColor Yellow
+        Write-Host "WARNING: manage.html not found" -ForegroundColor Yellow
     }
-} else {
-    Write-Host "WARNING: manage.html not found" -ForegroundColor Yellow
-}
 
-# ----------------- Update manifest.json -----------------
-$manifestTempPath = Join-Path $tempDir "manifest.json"
-if (-not (Test-Path $manifestTempPath)) {
-    Write-Host "ERROR: manifest.json not found in package!" -ForegroundColor Red
+    # ----- Ensure manifest version matches -----
+    $manifest    = Get-Content $manifestTempPath -Raw | ConvertFrom-Json
+    $oldVersion  = $manifest.version
+    $manifest.version = $PkgVersion
+    $manifest | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $manifestTempPath -Encoding UTF8
+    Write-Host "manifest.json: $oldVersion -> $PkgVersion" -ForegroundColor Green
+
+    # ----- Count and compress -----
+    $fileCount = (Get-ChildItem -Path $tempDir -Recurse -File).Count
+    Write-Host "Total files (temp): $fileCount" -ForegroundColor Cyan
+
+    Write-Host "Creating archive ($zipName)..." -ForegroundColor Yellow
+    try {
+        $originalLocation = Get-Location
+        Set-Location $tempDir
+
+        $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+
+        Get-ChildItem -Recurse -File | ForEach-Object {
+            $entryName = $_.FullName.Substring($tempDir.Length).TrimStart('\').Replace('\', '/')
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryName, "Optimal") | Out-Null
+        }
+        $zip.Dispose()
+
+        Set-Location $originalLocation
+        Write-Host "Archive created with POSIX paths!" -ForegroundColor Green
+    } catch {
+        if ($originalLocation) { Set-Location $originalLocation }
+        Write-Host "ERROR while creating archive: $_" -ForegroundColor Red
+        Remove-Item $tempDir -Recurse -Force
+        return
+    }
+
+    # ----- Cleanup temp -----
     Remove-Item $tempDir -Recurse -Force
-    exit 1
-}
 
-$manifest    = Get-Content $manifestTempPath -Raw | ConvertFrom-Json
-$oldVersion  = $manifest.version
-$manifest.version = $pkgVersion
-$manifest | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $manifestTempPath -Encoding UTF8
-Write-Host "manifest.json: $oldVersion -> $pkgVersion" -ForegroundColor Green
+    # ----- Report -----
+    $zipInfo = Get-Item $zipPath
+    $sizeKB  = [math]::Round($zipInfo.Length / 1KB, 2)
+    $sizeMB  = [math]::Round($zipInfo.Length / 1MB, 2)
 
-# ----------------- Count and compress -----------------
-$fileCount = (Get-ChildItem -Path $tempDir -Recurse -File).Count
-Write-Host "Total files (temp): $fileCount" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "[$TargetName] File:     $zipName" -ForegroundColor Cyan
+    Write-Host "[$TargetName] Location: $zipPath" -ForegroundColor Cyan
+    Write-Host "[$TargetName] Size:     $sizeKB KB ($sizeMB MB)" -ForegroundColor Cyan
 
-Write-Host ""
-Write-Host "Creating xpi archive ($zipName)..." -ForegroundColor Yellow
-try {
-    # Use PowerShell to zip all files in tempDir with forward slashes internally.
-    # We must change location to tempDir to ensure paths are relative and POSIX-style.
-    $originalLocation = Get-Location
-    Set-Location $tempDir
-    
-    # In PowerShell, we can't easily force forward slashes in Compress-Archive.
-    # So we'll use System.IO.Compression.ZipFile to have full control.
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
-    
-    Get-ChildItem -Recurse -File | ForEach-Object {
-        $entryName = $_.FullName.Substring($tempDir.Length).TrimStart('\').Replace('\', '/')
-        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryName, "Optimal") | Out-Null
-    }
+    # ----- Validate -----
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+    $hasManifest = $zip.Entries | Where-Object { $_.Name -eq "manifest.json" }
+    $hasIcons    = $zip.Entries | Where-Object { $_.FullName -like "*icons*" }
     $zip.Dispose()
-    
-    Set-Location $originalLocation
-    Write-Host "xpi successfully created with POSIX paths!" -ForegroundColor Green
-} catch {
-    if ($originalLocation) { Set-Location $originalLocation }
-    Write-Host "ERROR while creating xpi: $_" -ForegroundColor Red
-    Remove-Item $tempDir -Recurse -Force
-    exit 1
+
+    if ($hasManifest) { Write-Host "[$TargetName] [OK] manifest.json found" -ForegroundColor Green } else { Write-Host "[$TargetName] [ERROR] manifest.json NOT found!" -ForegroundColor Red }
+    if ($hasIcons)    { Write-Host "[$TargetName] [OK] Icons found"          -ForegroundColor Green } else { Write-Host "[$TargetName] [WARNING] No icons found" -ForegroundColor Yellow }
 }
 
-# ----------------- Cleanup -----------------
-Remove-Item $tempDir -Recurse -Force
+# ----------------- Dispatch -----------------
+$targets = if ($Target -eq 'all') { @('firefox','chrome','edge') } else { @($Target) }
+
+foreach ($t in $targets) {
+    New-Package -TargetName $t -PkgVersion $pkgVersion -SourceDir $sourceDir -OutputDir $outputDir -Timestamp $timestamp -FilesToExclude $filesToExclude
+}
 
 # ----------------- Final Info -----------------
-$zipInfo = Get-Item $zipPath
-$sizeKB  = [math]::Round($zipInfo.Length / 1KB, 2)
-$sizeMB  = [math]::Round($zipInfo.Length / 1MB, 2)
-
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Green
-Write-Host "  Build completed successfully!" -ForegroundColor Green
+Write-Host "  Build completed!" -ForegroundColor Green
 Write-Host "================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Version used: $pkgVersion" -ForegroundColor Cyan
-Write-Host "File: $zipName" -ForegroundColor Cyan
-Write-Host "Location: $zipPath" -ForegroundColor Cyan
-Write-Host "Size: $sizeKB KB ($sizeMB MB)" -ForegroundColor Cyan
+Write-Host "Version: $pkgVersion" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Validating structure..." -ForegroundColor Yellow
-
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-$zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-$hasManifest = $zip.Entries | Where-Object { $_.Name -eq "manifest.json" }
-$hasIcons    = $zip.Entries | Where-Object { $_.FullName -like "*icons*" }
-$zip.Dispose()
-
-if ($hasManifest) { Write-Host "[OK] manifest.json found" -ForegroundColor Green } else { Write-Host "[ERROR] manifest.json NOT found!" -ForegroundColor Red }
-if ($hasIcons)    { Write-Host "[OK] Icons found"          -ForegroundColor Green } else { Write-Host "[WARNING] No icons found" -ForegroundColor Yellow }
-
-Write-Host ""
-Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "1. Test the extension locally (about:debugging)" -ForegroundColor White
-Write-Host "2. Go to https://addons.mozilla.org/developers/" -ForegroundColor White
-Write-Host "3. Upload the file: $zipName" -ForegroundColor White
+Write-Host "Install instructions:" -ForegroundColor Cyan
+Write-Host "  Firefox: about:debugging -> This Firefox -> Load Temporary Add-on -> pick .xpi" -ForegroundColor White
+Write-Host "  Chrome:  chrome://extensions -> Developer mode -> unzip .zip -> Load unpacked" -ForegroundColor White
+Write-Host "  Edge:    edge://extensions -> Developer mode -> unzip .zip -> Load unpacked" -ForegroundColor White
 Write-Host ""
 Write-Host "Press any key to open the output directory..." -ForegroundColor Yellow
 $inCi = (($env:CI -and $env:CI.ToString().ToLower() -eq "true") -or $env:GITHUB_ACTIONS -or $env:TF_BUILD -or $env:BUILD_BUILDNUMBER)

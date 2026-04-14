@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(CI=true powershell -ExecutionPolicy Bypass -File ./build.ps1 -Target all)",
+      "Bash(CI=true powershell -ExecutionPolicy Bypass -File ./build.ps1 -Target firefox)",
+      "Bash(powershell -ExecutionPolicy Bypass -File ./dist/_verify.ps1)"
+    ]
+  }
+}

@@ -62,7 +62,6 @@ function cacheDom() {
     dom.newCategoryName = document.getElementById('new-category-name');
     dom.categoryMessage = document.getElementById('category-message');
     dom.categoriesList = document.getElementById('categories-list');
-    dom.categoryOptions = document.getElementById('category-options');
     dom.filterRow = document.getElementById('filter-row');
     dom.cutoffDate = document.getElementById('cutoff-date');
     dom.cutoffStatus = document.getElementById('cutoff-status');
@@ -406,7 +405,7 @@ function fillRuleForm(draft, contextLabel) {
     dom.ruleAccountName.value = draft.accountName || '';
     dom.rulePattern.value = draft.pattern || '';
     dom.ruleReplacement.value = draft.replacement || '';
-    dom.ruleCategory.value = draft.category || '';
+    setRuleCategoryValue(draft.category || '');
     dom.ruleMemo.value = draft.memoTemplate || '';
     dom.ruleRegex.checked = !!draft.isRegex;
     setMode('manage');
@@ -419,7 +418,7 @@ function clearRuleForm() {
     dom.ruleAccountName.value = '';
     dom.rulePattern.value = '';
     dom.ruleReplacement.value = '';
-    dom.ruleCategory.value = '';
+    setRuleCategoryValue('');
     dom.ruleMemo.value = '';
     dom.ruleRegex.checked = false;
     setInlineMessage(dom.ruleMessage, '', '');
@@ -484,19 +483,42 @@ async function addQuickCategory(event) {
 
 async function loadCategories() {
     state.categories = await StorageManager.getCategories();
-    dom.categoryOptions.innerHTML = '';
     dom.categoriesList.innerHTML = '';
+    dom.ruleCategory.innerHTML = '<option value="">Opcional</option>';
 
     state.categories.forEach((category) => {
         const option = document.createElement('option');
         option.value = category.name;
-        dom.categoryOptions.appendChild(option);
+        option.textContent = category.name;
+        dom.ruleCategory.appendChild(option);
 
         const tag = document.createElement('span');
         tag.className = 'tag';
         tag.textContent = category.name;
         dom.categoriesList.appendChild(tag);
     });
+
+    setRuleCategoryValue(state.ruleDraft?.category || '');
+}
+
+function setRuleCategoryValue(categoryName) {
+    const normalized = String(categoryName || '').trim();
+    Array.from(dom.ruleCategory.options)
+        .filter((option) => option.dataset.dynamic === 'true')
+        .forEach((option) => option.remove());
+    const hasOption = Array.from(dom.ruleCategory.options).some((option) => option.value === normalized);
+
+    if (!normalized || hasOption) {
+        dom.ruleCategory.value = normalized;
+        return;
+    }
+
+    const extraOption = document.createElement('option');
+    extraOption.value = normalized;
+    extraOption.textContent = `${normalized} (atual)`;
+    extraOption.dataset.dynamic = 'true';
+    dom.ruleCategory.appendChild(extraOption);
+    dom.ruleCategory.value = normalized;
 }
 
 async function exportSelected() {

@@ -4,7 +4,8 @@ const runtimeAPI = typeof browser !== 'undefined' ? browser.runtime : chrome.run
 const actionAPI = typeof browser !== 'undefined' ? browser.action : chrome.action;
 const downloadsAPI = typeof browser !== 'undefined' ? browser.downloads : chrome.downloads;
 const tabsAPI = typeof browser !== 'undefined' ? browser.tabs : chrome.tabs;
-const sidebarAPI = typeof browser !== 'undefined' ? browser.sidebarAction : chrome.sidebarAction;
+const sidebarActionAPI = typeof browser !== 'undefined' ? browser.sidebarAction : undefined;
+const sidePanelAPI = typeof chrome !== 'undefined' ? chrome.sidePanel : undefined;
 const commandsAPI = typeof browser !== 'undefined' ? browser.commands : chrome.commands;
 const scriptingAPI = typeof browser !== 'undefined' ? browser.scripting : chrome.scripting;
 
@@ -105,9 +106,23 @@ async function ensureContentScriptsInjected(tabId) {
     });
 }
 
-async function openSidebarAndRefresh() {
-    if (sidebarAPI?.open) {
-        await sidebarAPI.open();
+async function openSidebar(tabId) {
+    if (sidebarActionAPI?.open) {
+        await sidebarActionAPI.open();
+        return true;
+    }
+    if (sidePanelAPI?.open && tabId != null) {
+        await sidePanelAPI.open({ tabId });
+        return true;
+    }
+    return false;
+}
+
+async function openSidebarAndRefresh(tabId) {
+    try {
+        await openSidebar(tabId);
+    } catch (error) {
+        console.warn('Falha ao abrir sidebar:', error);
     }
     return refreshActiveTabReview();
 }
@@ -141,7 +156,8 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
                 return;
             }
             case 'OPEN_REVIEW_SIDEBAR': {
-                const result = await openSidebarAndRefresh();
+                const tabId = _sender?.tab?.id ?? (await getCurrentTab())?.id;
+                const result = await openSidebarAndRefresh(tabId);
                 sendResponse(result);
                 return;
             }
@@ -166,18 +182,21 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
 });
 
-actionAPI.onClicked.addListener(() => {
-    openSidebarAndRefresh().catch((error) => {
+actionAPI.onClicked.addListener((tab) => {
+    openSidebarAndRefresh(tab?.id).catch((error) => {
         console.error('Falha ao abrir sidebar:', error);
     });
 });
 
 if (commandsAPI?.onCommand) {
-    commandsAPI.onCommand.addListener((command) => {
+    commandsAPI.onCommand.addListener(async (command) => {
         if (command === 'open-review-sidebar') {
-            openSidebarAndRefresh().catch((error) => {
+            try {
+                const tab = await getCurrentTab();
+                await openSidebarAndRefresh(tab?.id);
+            } catch (error) {
                 console.error('Falha ao abrir sidebar via atalho:', error);
-            });
+            }
         }
     });
 }

@@ -1,19 +1,19 @@
 # Budget Exporter
 
-Uma extensao para Firefox que extrai transacoes de paginas bancarias suportadas, aplica padronizacao local de payees, sugere categorias de forma deterministica e exporta CSV revisado para o YNAB.
+Extensao multi-navegador (Firefox, Chrome, Edge) que extrai transacoes de paginas bancarias suportadas, aplica padronizacao local de payees, sugere categorias de forma deterministica e exporta CSV revisado para o YNAB.
 
 ## Visao Geral
 
-O projeto foi modernizado para Firefox com Manifest V3 e passou a usar um fluxo de revisao antes da exportacao:
+O projeto roda em Firefox, Chrome e Edge com Manifest V3 e usa um fluxo de revisao antes da exportacao:
 
-1. abrir a pagina do banco no Firefox
-2. clicar no icone da extensao
-3. revisar as transacoes na sidebar
+1. abrir a pagina do banco no navegador
+2. clicar no icone da extensao na barra de ferramentas
+3. revisar as transacoes na sidebar (Firefox) / side panel (Chrome, Edge)
 4. ajustar payee, categoria e memo quando necessario
 5. criar regras novas a partir de sugestoes locais
 6. exportar o CSV revisado
 
-Nada depende de IA, nuvem ou processamento remoto. Tudo e feito localmente no navegador, com JavaScript e `browser.storage.local`.
+Nada depende de IA, nuvem ou processamento remoto. Tudo e feito localmente no navegador, com JavaScript e `browser.storage.local` / `chrome.storage.local`.
 
 ## Principais Funcionalidades
 
@@ -45,11 +45,17 @@ Nada depende de IA, nuvem ou processamento remoto. Tudo e feito localmente no na
 ## Arquitetura Atual
 
 ### Manifest V3
-- `manifest.json` usa `manifest_version: 3`
-- `background.js` roda como `service_worker`
-- `action` abre a sidebar operacional
-- `sidebar_action` aponta para `sidebar.html`
-- `host_permissions` controlam acesso aos bancos suportados
+
+Dois manifestos sao mantidos no repositorio e escolhidos no momento do build:
+
+- `manifest.firefox.json` — usa `sidebar_action` (sidebar do Firefox) + `page_action` (icone na barra de URL ao lado da estrela) + `browser_specific_settings.gecko`
+- `manifest.chrome.json` — usa `side_panel` (Chrome/Edge 114+) e `background.service_worker` puro
+
+Os dois compartilham:
+- `manifest_version: 3`
+- `background.js` rodando como service worker
+- `action` abrindo a UI de revisao
+- `host_permissions` para os bancos suportados
 
 ### Componentes principais
 - `content.js`: extrai a pagina atual e monta o estado de revisao
@@ -62,7 +68,8 @@ Nada depende de IA, nuvem ou processamento remoto. Tudo e feito localmente no na
 
 ```text
 budget-exporter/
-├── manifest.json
+├── manifest.firefox.json
+├── manifest.chrome.json
 ├── background.js
 ├── content.js
 ├── bank-utils.js
@@ -104,11 +111,21 @@ As sugestoes sao conservadoras para reduzir ruido.
 
 ### Instalar para teste local
 
-1. rode `build.ps1` ou carregue a pasta em `about:debugging`
-2. abra `about:debugging`
-3. selecione `Este Firefox`
-4. clique em `Carregar extensao temporaria`
-5. escolha `manifest.json` ou o `.xpi` gerado
+**Firefox**
+1. rode `.\build.ps1 -Target firefox`
+2. abra `about:debugging` → `Este Firefox` → `Carregar extensao temporaria`
+3. escolha o `.xpi` gerado em `dist/`
+4. em uma pagina de banco suportada, um icone extra aparece na barra de URL ao lado da estrela (page_action)
+
+**Chrome**
+1. rode `.\build.ps1 -Target chrome`
+2. descompacte o `.zip` gerado em `dist/`
+3. abra `chrome://extensions`, ative `Modo de desenvolvedor`, clique em `Carregar sem compactacao` e selecione a pasta
+
+**Edge**
+1. rode `.\build.ps1 -Target edge`
+2. descompacte o `.zip` gerado em `dist/`
+3. abra `edge://extensions`, ative `Modo de desenvolvedor`, clique em `Carregar sem compactacao` e selecione a pasta
 
 ### Configurar regras
 
@@ -160,15 +177,24 @@ await StorageManager.addPayeeRule({
 
 ## Build e Distribuicao
 
-Execute:
+Default (Firefox):
 
 ```powershell
 .\build.ps1
 ```
 
+Alvos:
+
+```powershell
+.\build.ps1 -Target firefox   # .xpi
+.\build.ps1 -Target chrome    # .zip
+.\build.ps1 -Target edge      # .zip
+.\build.ps1 -Target all       # os tres artefatos
+```
+
 O script:
-- le a versao do manifesto
-- monta o pacote `.xpi`
+- le a versao de `manifest.firefox.json`
+- escolhe o manifest correto para cada alvo e renomeia para `manifest.json` dentro do pacote
 - usa nome fallback com timestamp se o arquivo anterior estiver travado
 - valida `manifest.json` e icones
 
@@ -181,7 +207,7 @@ Leia tambem: [README-BUILD.md](README-BUILD.md)
 1. crie um novo arquivo `strategy-<conta>.js`
 2. implemente `extractTransactions()`
 3. implemente `toCsv()` usando `BankUtils.toCsv(...)`
-4. adicione o host em `manifest.json`
+4. adicione o host em `manifest.firefox.json` e `manifest.chrome.json` (em `host_permissions`, `content_scripts.matches` e `web_accessible_resources.matches`)
 5. registre a conta em `bank-utils.js`
 
 ## Roadmap atual
