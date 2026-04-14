@@ -86,6 +86,7 @@ function bindEvents() {
         dom.filterRow.querySelectorAll('[data-filter]').forEach((item) => {
             item.classList.toggle('active', item === button);
         });
+        renderSuggestions();
         renderTransactions();
     });
 
@@ -264,9 +265,16 @@ function renderSummary() {
 
 function renderSuggestions() {
     const review = state.review;
+    const section = dom.suggestionsList.closest('.section-block');
     dom.suggestionsList.innerHTML = '';
     const suggestions = review?.suggestions || [];
     dom.suggestionsCount.textContent = String(suggestions.length);
+
+    const shouldHide = !(state.filter === 'all' || state.filter === 'suggested');
+    if (section) {
+        section.classList.toggle('hidden', shouldHide);
+    }
+    if (shouldHide) return;
 
     if (suggestions.length === 0) {
         dom.suggestionsList.innerHTML = '<div class="small">Nenhuma sugestao nova nesta pagina.</div>';
@@ -274,19 +282,19 @@ function renderSuggestions() {
     }
 
     suggestions.forEach((suggestion) => {
+        const title = suggestion.draftReplacement || suggestion.canonicalPattern;
         const card = document.createElement('article');
-        card.className = 'suggestion-card';
+        card.className = 'suggestion-card compact';
         card.innerHTML = `
-            <div class="card-head">
-                <strong>${escapeHtml(suggestion.draftReplacement || suggestion.canonicalPattern)}</strong>
-                <span class="pill">${suggestion.occurrenceCount} ocorrencias</span>
-            </div>
-            <p class="small">Exemplo: ${escapeHtml(suggestion.samplePayee)}</p>
-            <p class="small">Padrao sugerido: ${escapeHtml(suggestion.canonicalPattern)}</p>
-            <p class="small">${escapeHtml(suggestion.evidenceLabel || '')}</p>
-            ${suggestion.draftCategory ? `<p class="small">Categoria sugerida: ${escapeHtml(suggestion.draftCategory)}</p>` : ''}
-            <div class="card-actions">
-                <button class="button primary" type="button" data-action="use-suggestion" data-key="${escapeHtml(suggestion.suggestionKey)}">Criar regra</button>
+            <div class="suggestion-row">
+                <div class="suggestion-info">
+                    <strong>${escapeHtml(title)}</strong>
+                    <p class="small">Ex: ${escapeHtml(suggestion.samplePayee)}${suggestion.draftCategory ? ` · ${escapeHtml(suggestion.draftCategory)}` : ''}</p>
+                </div>
+                <div class="suggestion-meta">
+                    <span class="pill">${suggestion.occurrenceCount}x</span>
+                    <button class="button primary small-btn" type="button" data-action="use-suggestion" data-key="${escapeHtml(suggestion.suggestionKey)}">Criar regra</button>
+                </div>
             </div>
         `;
         dom.suggestionsList.appendChild(card);
@@ -295,7 +303,14 @@ function renderSuggestions() {
 
 function renderTransactions() {
     const review = state.review;
+    const section = dom.transactionsList.closest('.section-block');
     dom.transactionsList.innerHTML = '';
+
+    const shouldHide = state.filter === 'suggested';
+    if (section) {
+        section.classList.toggle('hidden', shouldHide);
+    }
+    if (shouldHide) return;
 
     if (!review) {
         dom.transactionsCount.textContent = '0';

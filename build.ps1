@@ -63,10 +63,11 @@ function Resolve-ArchivePath([string]$outputDir, [string]$preferredName, [string
 }
 
 # ----------------- Read version from source manifest -----------------
-# Firefox variant is the canonical source of the version (both manifests must share it).
-$manifestSourcePath = Join-Path $sourceDir "manifest.firefox.json"
+# manifest.json is the Firefox variant AND the canonical source of the version.
+# manifest.chrome.json is the override used only for Chrome/Edge builds.
+$manifestSourcePath = Join-Path $sourceDir "manifest.json"
 if (-not (Test-Path $manifestSourcePath)) {
-    Write-Host "ERROR: manifest.firefox.json not found in source directory!" -ForegroundColor Red
+    Write-Host "ERROR: manifest.json not found in source directory!" -ForegroundColor Red
     exit 1
 }
 
@@ -74,10 +75,10 @@ $manifestContent = Get-Content $manifestSourcePath -Raw | ConvertFrom-Json
 $pkgVersion = $manifestContent.version
 
 if ([string]::IsNullOrWhiteSpace($pkgVersion)) {
-    Write-Host "WARNING: Version not found in manifest.firefox.json. Using timestamp: $timestamp" -ForegroundColor Yellow
+    Write-Host "WARNING: Version not found in manifest.json. Using timestamp: $timestamp" -ForegroundColor Yellow
     $pkgVersion = $timestamp
 } else {
-    Write-Host "Version from manifest.firefox.json: $pkgVersion" -ForegroundColor Green
+    Write-Host "Version from manifest.json: $pkgVersion" -ForegroundColor Green
 }
 
 # ----------------- Prepare output directory -----------------
@@ -89,7 +90,7 @@ if (-not (Test-Path $outputDir)) {
 # ----------------- Exclusion rules -----------------
 $filesToExclude = @(
     "*.md","*.txt",".git*","node_modules",".DS_Store","Thumbs.db","*.log","*.tmp","dist","*.ps1",".idea*", "dist*", "node_modules*",
-    "manifest.firefox.json","manifest.chrome.json"
+    "manifest.chrome.json"
 )
 
 function New-Package {
@@ -104,7 +105,7 @@ function New-Package {
 
     # Extension + source manifest per target
     switch ($TargetName) {
-        'firefox' { $archiveExt = 'xpi'; $manifestSrc = 'manifest.firefox.json' }
+        'firefox' { $archiveExt = 'xpi'; $manifestSrc = 'manifest.json'         }
         'chrome'  { $archiveExt = 'zip'; $manifestSrc = 'manifest.chrome.json'  }
         'edge'    { $archiveExt = 'zip'; $manifestSrc = 'manifest.chrome.json'  }
     }

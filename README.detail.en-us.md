@@ -19,7 +19,13 @@ Everything runs locally in the browser. No AI model, cloud sync, or remote proce
 
 ### Firefox
 
-1. Build the package: `.\build.ps1 -Target firefox`
+For fast dev iteration (no build needed):
+1. Open `about:debugging` → This Firefox → Load Temporary Add-on.
+2. Select `manifest.json` at the project root.
+3. Click `Reload` in `about:debugging` whenever you change a source file.
+
+For a packaged install:
+1. Build: `.\build.ps1 -Target firefox`.
 2. Open `about:debugging` → This Firefox → Load Temporary Add-on → select the `.xpi`.
 
 When you visit a supported bank page, an extra icon appears inside the URL bar next to the favorites star (Firefox `page_action`).
@@ -40,7 +46,8 @@ Chrome does not show an icon inside the URL bar — use the always-visible toolb
 
 ## Main Components
 
-- `manifest.firefox.json` / `manifest.chrome.json`: per-browser MV3 manifests (build script renames the chosen one to `manifest.json`)
+- `manifest.json`: MV3 manifest (Firefox variant — also the default when loading the source folder via `about:debugging`)
+- `manifest.chrome.json`: Chrome/Edge override applied at build time (replaces `manifest.json` inside the packaged `.zip`)
 - `background.js`: service worker coordination and export
 - `content.js`: page extraction and review-state preparation
 - `bank-utils.js`: bank detection, normalization, suggestions, CSV generation

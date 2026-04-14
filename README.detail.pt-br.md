@@ -48,8 +48,8 @@ Nada depende de IA, nuvem ou processamento remoto. Tudo e feito localmente no na
 
 Dois manifestos sao mantidos no repositorio e escolhidos no momento do build:
 
-- `manifest.firefox.json` — usa `sidebar_action` (sidebar do Firefox) + `page_action` (icone na barra de URL ao lado da estrela) + `browser_specific_settings.gecko`
-- `manifest.chrome.json` — usa `side_panel` (Chrome/Edge 114+) e `background.service_worker` puro
+- `manifest.json` — variante **Firefox** (default). Usa `sidebar_action` (sidebar) + `page_action` (icone na barra de URL ao lado da estrela) + `browser_specific_settings.gecko`. E este que o Firefox carrega quando voce aponta para a pasta em `about:debugging`.
+- `manifest.chrome.json` — override para Chrome/Edge. Usa `side_panel` (Chrome/Edge 114+) e `background.service_worker` puro. Substitui `manifest.json` dentro do `.zip` durante o build.
 
 Os dois compartilham:
 - `manifest_version: 3`
@@ -68,7 +68,7 @@ Os dois compartilham:
 
 ```text
 budget-exporter/
-├── manifest.firefox.json
+├── manifest.json
 ├── manifest.chrome.json
 ├── background.js
 ├── content.js
@@ -111,11 +111,17 @@ As sugestoes sao conservadoras para reduzir ruido.
 
 ### Instalar para teste local
 
-**Firefox**
+**Firefox** (dev mode direto da pasta — sem build)
+1. abra `about:debugging` → `Este Firefox` → `Carregar extensao temporaria`
+2. selecione `manifest.json` na raiz do projeto
+3. para recarregar apos editar, use o botao `Recarregar` em `about:debugging`
+
+**Firefox** (a partir do .xpi empacotado)
 1. rode `.\build.ps1 -Target firefox`
 2. abra `about:debugging` → `Este Firefox` → `Carregar extensao temporaria`
 3. escolha o `.xpi` gerado em `dist/`
-4. em uma pagina de banco suportada, um icone extra aparece na barra de URL ao lado da estrela (page_action)
+
+Em qualquer dos fluxos, em uma pagina de banco suportada um icone extra aparece na barra de URL ao lado da estrela (page_action).
 
 **Chrome**
 1. rode `.\build.ps1 -Target chrome`
@@ -193,8 +199,8 @@ Alvos:
 ```
 
 O script:
-- le a versao de `manifest.firefox.json`
-- escolhe o manifest correto para cada alvo e renomeia para `manifest.json` dentro do pacote
+- le a versao de `manifest.json`
+- alvo `firefox`: empacota o proprio `manifest.json`. Alvos `chrome`/`edge`: substituem por `manifest.chrome.json`
 - usa nome fallback com timestamp se o arquivo anterior estiver travado
 - valida `manifest.json` e icones
 
@@ -207,7 +213,7 @@ Leia tambem: [README-BUILD.md](README-BUILD.md)
 1. crie um novo arquivo `strategy-<conta>.js`
 2. implemente `extractTransactions()`
 3. implemente `toCsv()` usando `BankUtils.toCsv(...)`
-4. adicione o host em `manifest.firefox.json` e `manifest.chrome.json` (em `host_permissions`, `content_scripts.matches` e `web_accessible_resources.matches`)
+4. adicione o host em `manifest.json` e `manifest.chrome.json` (em `host_permissions`, `content_scripts.matches` e `web_accessible_resources.matches`)
 5. registre a conta em `bank-utils.js`
 
 ## Roadmap atual

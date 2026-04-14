@@ -17,14 +17,19 @@ Script PowerShell para gerar os pacotes da extensao (Firefox `.xpi`, Chrome/Edge
 .\build.ps1 -Target all
 ```
 
+## Estrategia de manifest
+
+- `manifest.json` — variante **Firefox** (default). E este que o Firefox carrega via `about:debugging` quando voce aponta para a pasta do projeto. Fonte canonica de `version`.
+- `manifest.chrome.json` — override usado no build para Chrome/Edge. Durante o build desses alvos, ele substitui `manifest.json` dentro do pacote.
+
 ## O que o script faz
 
-- le a versao de `manifest.firefox.json`
+- le a versao de `manifest.json`
 - cria `dist/` se necessario
 - para cada alvo:
   - copia somente os arquivos necessarios para o pacote
-  - exclui documentacao, controle de versao, dependencias, temporarios e os manifests `manifest.firefox.json` / `manifest.chrome.json`
-  - usa o manifest correto (`manifest.firefox.json` ou `manifest.chrome.json`) e o renomeia para `manifest.json` no pacote
+  - exclui documentacao, controle de versao, dependencias, temporarios e `manifest.chrome.json`
+  - no alvo `firefox`, o `manifest.json` vai tal qual. Nos alvos `chrome`/`edge`, o conteudo de `manifest.chrome.json` substitui `manifest.json` no pacote
   - atualiza a versao exibida em `manage.html`
   - gera `.xpi` (Firefox) ou `.zip` (Chrome/Edge) com caminhos POSIX internos
   - valida se `manifest.json` e icones estao no pacote
@@ -46,7 +51,7 @@ budget-exporter-v1.3.0-firefox-YYYYMMDD-HHMMSS.xpi
 
 ## Arquivos incluidos
 
-- `manifest.json` (derivado do `manifest.firefox.json` ou `manifest.chrome.json`)
+- `manifest.json` (Firefox: direto; Chrome/Edge: substituido pelo conteudo de `manifest.chrome.json`)
 - `*.js`
 - `*.html`
 - `*.css`
@@ -60,7 +65,7 @@ budget-exporter-v1.3.0-firefox-YYYYMMDD-HHMMSS.xpi
 - `node_modules/`, `dist/`
 - `*.log`, `*.tmp`, `.idea/`
 - `*.ps1`
-- `manifest.firefox.json`, `manifest.chrome.json` (o script injeta apenas um, como `manifest.json`)
+- `manifest.chrome.json` (o build injeta seu conteudo em `manifest.json` para os alvos Chrome/Edge)
 
 ## Solucao de problemas
 
@@ -70,9 +75,9 @@ budget-exporter-v1.3.0-firefox-YYYYMMDD-HHMMSS.xpi
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-### Erro: manifest.firefox.json nao encontrado
+### Erro: manifest.json nao encontrado
 
-Execute o script na raiz do projeto, onde estao `manifest.firefox.json` e `manifest.chrome.json`.
+Execute o script na raiz do projeto, onde estao `manifest.json` e `manifest.chrome.json`.
 
 ### Quero validar o conteudo do pacote
 
@@ -113,7 +118,16 @@ Remove-Item temp-check -Recurse
 
 ## Versionamento
 
-1. Edite `manifest.firefox.json` e `manifest.chrome.json` atualizando `version` nos dois (devem coincidir).
+1. Edite `manifest.json` e `manifest.chrome.json` atualizando `version` nos dois (devem coincidir).
 2. Rode `.\build.ps1 -Target all`.
 
 Os nomes dos arquivos serao atualizados automaticamente.
+
+## Teste local direto da pasta (dev mode no Firefox)
+
+Como `manifest.json` e a variante Firefox, voce pode carregar a pasta inteira no Firefox sem precisar rodar o build:
+
+1. Abra `about:debugging` → `Este Firefox` → `Carregar extensao temporaria`
+2. Selecione o arquivo `manifest.json` na raiz do projeto
+
+Isso permite iteracao rapida (edita codigo → clica `Recarregar` no about:debugging). Para Chrome/Edge nao ha essa conveniencia porque o `manifest.json` do source tem `sidebar_action`/`page_action`, chaves que o Chrome rejeita — use `.\build.ps1 -Target chrome` e carregue o `.zip` descompactado.

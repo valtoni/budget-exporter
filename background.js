@@ -6,6 +6,7 @@ const downloadsAPI = typeof browser !== 'undefined' ? browser.downloads : chrome
 const tabsAPI = typeof browser !== 'undefined' ? browser.tabs : chrome.tabs;
 const sidebarActionAPI = typeof browser !== 'undefined' ? browser.sidebarAction : undefined;
 const sidePanelAPI = typeof chrome !== 'undefined' ? chrome.sidePanel : undefined;
+const pageActionAPI = typeof browser !== 'undefined' ? browser.pageAction : undefined;
 const commandsAPI = typeof browser !== 'undefined' ? browser.commands : chrome.commands;
 const scriptingAPI = typeof browser !== 'undefined' ? browser.scripting : chrome.scripting;
 
@@ -106,25 +107,17 @@ async function ensureContentScriptsInjected(tabId) {
     });
 }
 
-async function openSidebar(tabId) {
+// Must be called synchronously inside a user-gesture handler (Firefox sidebarAction.open()
+// and Chrome sidePanel.open() both enforce this). Returns the underlying promise so the
+// caller can attach error logging without awaiting in the gesture path.
+function openSidebar(tabId) {
     if (sidebarActionAPI?.open) {
-        await sidebarActionAPI.open();
-        return true;
+        return sidebarActionAPI.open();
     }
     if (sidePanelAPI?.open && tabId != null) {
-        await sidePanelAPI.open({ tabId });
-        return true;
+        return sidePanelAPI.open({ tabId });
     }
-    return false;
-}
-
-async function openSidebarAndRefresh(tabId) {
-    try {
-        await openSidebar(tabId);
-    } catch (error) {
-        console.warn('Falha ao abrir sidebar:', error);
-    }
-    return refreshActiveTabReview();
+    return Promise.resolve(false);
 }
 
 async function exportCsv(csv, filename) {
@@ -157,7 +150,8 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
             }
             case 'OPEN_REVIEW_SIDEBAR': {
                 const tabId = _sender?.tab?.id ?? (await getCurrentTab())?.id;
-                const result = await openSidebarAndRefresh(tabId);
+                openSidebar(tabId).catch((error) => console.warn('Falha ao abrir sidebar:', error));
+                const result = await refreshActiveTabReview();
                 sendResponse(result);
                 return;
             }
@@ -182,22 +176,39 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
 });
 
+// Toolbar action:
+// - Firefox: opens the management page (manage.html) — daily review flow lives on the URL-bar page_action.
+// - Chrome/Edge: opens the side panel (no URL-bar icon exists there, so the toolbar is the main entry point).
 actionAPI.onClicked.addListener((tab) => {
-    openSidebarAndRefresh(tab?.id).catch((error) => {
-        console.error('Falha ao abrir sidebar:', error);
-    });
+    if (sidebarActionAPI?.open) {
+        runtimeAPI.openOptionsPage().catch((error) => console.error('Falha ao abrir manage:', error));
+        return;
+    }
+    openSidebar(tab?.id).catch((error) => console.error('Falha ao abrir side panel:', error));
+    refreshActiveTabReview().catch((error) => console.error('Falha ao atualizar revisao:', error));
 });
 
+// Firefox-only: page_action (URL bar icon, shown on supported bank pages) opens the review sidebar.
+if (pageActionAPI?.onClicked) {
+    pageActionAPI.onClicked.addListener((tab) => {
+        openSidebar(tab?.id).catch((error) => console.error('Falha ao abrir sidebar:', error));
+        refreshActiveTabReview().catch((error) => console.error('Falha ao atualizar revisao:', error));
+    });
+}
+
 if (commandsAPI?.onCommand) {
-    commandsAPI.onCommand.addListener(async (command) => {
-        if (command === 'open-review-sidebar') {
-            try {
-                const tab = await getCurrentTab();
-                await openSidebarAndRefresh(tab?.id);
-            } catch (error) {
-                console.error('Falha ao abrir sidebar via atalho:', error);
-            }
+    commandsAPI.onCommand.addListener((command) => {
+        if (command !== 'open-review-sidebar') return;
+        // Firefox: sidebarActionAPI.open() does not need a tabId.
+        if (sidebarActionAPI?.open) {
+            sidebarActionAPI.open().catch((error) => console.error('Falha ao abrir sidebar via atalho:', error));
+        } else if (sidePanelAPI?.open) {
+            // Chrome/Edge: must resolve tabId; gesture survives one await in the handler.
+            getCurrentTab()
+                .then((tab) => (tab?.id != null ? sidePanelAPI.open({ tabId: tab.id }) : undefined))
+                .catch((error) => console.error('Falha ao abrir side panel via atalho:', error));
         }
+        refreshActiveTabReview().catch((error) => console.error('Falha ao atualizar revisao via atalho:', error));
     });
 }
 

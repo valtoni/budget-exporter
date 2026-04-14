@@ -19,7 +19,13 @@ Tout s'execute localement dans le navigateur. Aucun modele IA, aucun traitement 
 
 ### Firefox
 
-1. Construire le paquet : `.\build.ps1 -Target firefox`
+Pour l'iteration rapide en dev (sans build) :
+1. Ouvrir `about:debugging` → Ce Firefox → Charger un module complementaire temporaire.
+2. Selectionner `manifest.json` a la racine du projet.
+3. Cliquer sur `Recharger` dans `about:debugging` apres chaque modification.
+
+Pour installer a partir du paquet :
+1. Construire : `.\build.ps1 -Target firefox`.
 2. Ouvrir `about:debugging` → Ce Firefox → Charger un module complementaire temporaire → selectionner le `.xpi`.
 
 Sur une page bancaire prise en charge, une icone supplementaire apparait dans la barre d'URL a cote de l'etoile des favoris (Firefox `page_action`).
@@ -40,7 +46,8 @@ Chrome n'affiche pas d'icone dans la barre d'URL : utilisez l'icone de la barre 
 
 ## Composants principaux
 
-- `manifest.firefox.json` / `manifest.chrome.json` : manifestes MV3 par navigateur (le script de build renomme celui choisi en `manifest.json`)
+- `manifest.json` : manifeste MV3 (variante Firefox — egalement le default quand on charge le dossier source via `about:debugging`)
+- `manifest.chrome.json` : override Chrome/Edge applique au build (remplace `manifest.json` dans le `.zip` empaquete)
 - `background.js` : coordination du service worker et export
 - `content.js` : extraction de la page et preparation de l'etat de revision
 - `bank-utils.js` : detection de banque, normalisation, suggestions et generation du CSV
