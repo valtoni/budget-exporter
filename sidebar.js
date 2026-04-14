@@ -7,7 +7,8 @@ const state = {
     mode: 'review',
     categories: [],
     ruleDraft: null,
-    cutoffDate: ''
+    cutoffDate: '',
+    expandedSplits: new Set()
 };
 
 const dom = {};
@@ -41,10 +42,9 @@ function cacheDom() {
     dom.summaryPage = document.getElementById('summary-page');
     dom.summaryGrid = document.getElementById('summary-grid');
     dom.summaryError = document.getElementById('summary-error');
-    dom.suggestionsList = document.getElementById('suggestions-list');
-    dom.transactionsList = document.getElementById('transactions-list');
-    dom.suggestionsCount = document.getElementById('suggestions-count');
-    dom.transactionsCount = document.getElementById('transactions-count');
+    dom.reviewGrid = document.getElementById('review-grid');
+    dom.gridCount = document.getElementById('grid-count');
+    dom.categoryOptions = document.getElementById('category-options');
     dom.reviewPanel = document.getElementById('review-panel');
     dom.managePanel = document.getElementById('manage-panel');
     dom.modeReview = document.getElementById('mode-review');
@@ -86,14 +86,12 @@ function bindEvents() {
         dom.filterRow.querySelectorAll('[data-filter]').forEach((item) => {
             item.classList.toggle('active', item === button);
         });
-        renderSuggestions();
-        renderTransactions();
+        renderGrid();
     });
 
-    dom.transactionsList.addEventListener('input', onTransactionInput);
-    dom.transactionsList.addEventListener('change', onTransactionChange);
-    dom.transactionsList.addEventListener('click', onTransactionClick);
-    dom.suggestionsList.addEventListener('click', onSuggestionClick);
+    dom.reviewGrid.addEventListener('input', onTransactionInput);
+    dom.reviewGrid.addEventListener('change', onTransactionChange);
+    dom.reviewGrid.addEventListener('click', onTransactionClick);
     dom.ruleForm.addEventListener('submit', saveRule);
     dom.categoryForm.addEventListener('submit', addQuickCategory);
     runtimeAPI.onMessage.addListener((message) => {
@@ -124,16 +122,25 @@ async function getActiveReview() {
 
 function applyReview(review) {
     state.review = JSON.parse(JSON.stringify(review));
+    normalizeReviewShape();
     applyCutoffToReview();
     recalculateSummary();
     updateFilterLabels();
     renderCutoffStatus();
     renderSummary();
-    renderSuggestions();
-    renderTransactions();
+    renderGrid();
     if (state.ruleDraft && state.review?.account) {
         dom.ruleAccountName.value = state.review.account.displayName;
     }
+}
+
+function normalizeReviewShape() {
+    if (!state.review?.transactions) return;
+    state.review.transactions.forEach((tx) => {
+        if (!Array.isArray(tx.splits)) {
+            tx.splits = null;
+        }
+    });
 }
 
 function renderCutoffStatus() {
@@ -263,107 +270,122 @@ function renderSummary() {
     }
 }
 
-function renderSuggestions() {
+function renderGrid() {
     const review = state.review;
-    const section = dom.suggestionsList.closest('.section-block');
-    dom.suggestionsList.innerHTML = '';
-    const suggestions = review?.suggestions || [];
-    dom.suggestionsCount.textContent = String(suggestions.length);
-
-    const shouldHide = !(state.filter === 'all' || state.filter === 'suggested');
-    if (section) {
-        section.classList.toggle('hidden', shouldHide);
-    }
-    if (shouldHide) return;
-
-    if (suggestions.length === 0) {
-        dom.suggestionsList.innerHTML = '<div class="small">Nenhuma sugestao nova nesta pagina.</div>';
-        return;
-    }
-
-    suggestions.forEach((suggestion) => {
-        const title = suggestion.draftReplacement || suggestion.canonicalPattern;
-        const card = document.createElement('article');
-        card.className = 'suggestion-card compact';
-        card.innerHTML = `
-            <div class="suggestion-row">
-                <div class="suggestion-info">
-                    <strong>${escapeHtml(title)}</strong>
-                    <p class="small">Ex: ${escapeHtml(suggestion.samplePayee)}${suggestion.draftCategory ? ` · ${escapeHtml(suggestion.draftCategory)}` : ''}</p>
-                </div>
-                <div class="suggestion-meta">
-                    <span class="pill">${suggestion.occurrenceCount}x</span>
-                    <button class="button primary small-btn" type="button" data-action="use-suggestion" data-key="${escapeHtml(suggestion.suggestionKey)}">Criar regra</button>
-                </div>
-            </div>
-        `;
-        dom.suggestionsList.appendChild(card);
-    });
-}
-
-function renderTransactions() {
-    const review = state.review;
-    const section = dom.transactionsList.closest('.section-block');
-    dom.transactionsList.innerHTML = '';
-
-    const shouldHide = state.filter === 'suggested';
-    if (section) {
-        section.classList.toggle('hidden', shouldHide);
-    }
-    if (shouldHide) return;
+    dom.reviewGrid.innerHTML = '';
 
     if (!review) {
-        dom.transactionsCount.textContent = '0';
-        dom.transactionsList.innerHTML = '<div class="small">Nenhuma revisao carregada.</div>';
+        dom.gridCount.textContent = '0';
+        dom.reviewGrid.innerHTML = '<div class="small empty-state">Nenhuma revisao carregada.</div>';
         return;
     }
 
     const items = review.transactions.filter((tx) => state.filter === 'all' || tx.matchStatus === state.filter);
-    dom.transactionsCount.textContent = String(items.length);
+    dom.gridCount.textContent = String(items.length);
 
     if (items.length === 0) {
-        dom.transactionsList.innerHTML = '<div class="small">Nenhuma transacao para o filtro atual.</div>';
+        dom.reviewGrid.innerHTML = '<div class="small empty-state">Nenhuma transacao para o filtro atual.</div>';
         return;
     }
 
     items.forEach((tx) => {
-        const card = document.createElement('article');
-        card.className = `transaction-card ${tx.matchStatus !== 'matched' ? 'needs-attention' : ''}`;
-        card.innerHTML = `
-            <div class="card-head">
-                <div>
-                    <strong>${escapeHtml(tx.payeeRaw || 'Sem descricao')}</strong>
-                    <div class="transaction-meta">${escapeHtml(tx.dateIso || tx.dateRaw || '')} · ${escapeHtml(formatAmount(tx))}</div>
+        const hasSplits = Array.isArray(tx.splits) && tx.splits.length > 0;
+        const isExpanded = state.expandedSplits.has(tx.id) || hasSplits;
+        const row = document.createElement('div');
+        row.className = `grid-row status-${tx.matchStatus}${tx.cutoffExcluded ? ' cutoff' : ''}`;
+        row.dataset.id = tx.id;
+
+        const direction = getTxDirection(tx);
+        const absAmount = getTxAbsAmount(tx);
+        const disableMainCatMemo = hasSplits;
+        const categoryDisplay = hasSplits ? `Split em ${tx.splits.length} categorias` : (tx.categoryFinal || '');
+        const memoDisplay = hasSplits ? '' : (tx.memoFinal || '');
+
+        row.innerHTML = `
+            <div class="cell-de">
+                <div class="small de-date">${escapeHtml(tx.dateIso || tx.dateRaw || '')}</div>
+                <strong class="de-payee" title="${escapeAttribute(tx.payeeRaw || '')}">${escapeHtml(tx.payeeRaw || 'Sem descricao')}</strong>
+                <div class="small de-amount">${escapeHtml(tx.amountRaw || formatAmount(tx))}</div>
+                ${tx.matchReason ? `<div class="small de-reason">${escapeHtml(tx.matchReason)}</div>` : ''}
+            </div>
+            <div class="cell-para">
+                <input type="date" data-field="dateIso" data-id="${escapeHtml(tx.id)}" value="${escapeAttribute(tx.dateIso || '')}" title="Data">
+                <input type="text" data-field="payeeFinal" data-id="${escapeHtml(tx.id)}" value="${escapeAttribute(tx.payeeFinal || '')}" placeholder="Payee final" title="Payee final">
+                <input type="text" list="category-options" data-field="categoryFinal" data-id="${escapeHtml(tx.id)}" value="${escapeAttribute(categoryDisplay)}" placeholder="Categoria" title="Categoria" ${disableMainCatMemo ? 'disabled' : ''}>
+                <input type="text" data-field="memoFinal" data-id="${escapeHtml(tx.id)}" value="${escapeAttribute(memoDisplay)}" placeholder="Memo" title="Memo" ${disableMainCatMemo ? 'disabled' : ''}>
+                <div class="amount-editor">
+                    <input type="number" step="0.01" min="0" data-field="amountAbs" data-id="${escapeHtml(tx.id)}" value="${escapeAttribute(absAmount)}" placeholder="0.00">
+                    <button type="button" class="direction-toggle ${direction}" data-action="toggle-direction" data-id="${escapeHtml(tx.id)}" title="${direction === 'out' ? 'Saida (clique para alternar)' : 'Entrada (clique para alternar)'}">${direction === 'out' ? '&minus;' : '&plus;'}</button>
                 </div>
-                <span class="status-badge ${tx.matchStatus}">${escapeHtml(statusLabel(tx.matchStatus))}</span>
             </div>
-            <div class="selection-row">
+            <div class="cell-action">
+                <span class="status-dot ${tx.matchStatus}" title="${escapeAttribute(statusLabel(tx.matchStatus))}"></span>
+                <button type="button" class="icon-btn" data-action="prefill-from-transaction" data-id="${escapeHtml(tx.id)}" title="Criar regra">&#9889;</button>
+                <button type="button" class="icon-btn ${isExpanded ? 'active' : ''}" data-action="toggle-splits" data-id="${escapeHtml(tx.id)}" title="Dividir em categorias (split)">&#9783;</button>
+            </div>
+            <div class="cell-check">
                 <input type="checkbox" data-action="toggle-selected" data-id="${escapeHtml(tx.id)}" ${tx.selected === false ? '' : 'checked'}>
-                <span>${tx.selected === false ? 'Nao sera exportada' : 'Sera exportada'}</span>
-            </div>
-            ${tx.cutoffExcluded ? `<p class="small">Excluida pelo corte em ${escapeHtml(state.cutoffDate)}</p>` : ''}
-            ${tx.matchReason ? `<p class="small">${escapeHtml(tx.matchReason)}</p>` : ''}
-            ${tx.payeeFinal && tx.payeeFinal !== tx.payeeRaw ? `<p class="small">Payee sugerido: ${escapeHtml(tx.payeeFinal)}</p>` : ''}
-            <div class="transaction-edit editor-grid">
-                <label>
-                    Payee final
-                    <input type="text" data-field="payeeFinal" data-id="${escapeHtml(tx.id)}" value="${escapeAttribute(tx.payeeFinal || '')}">
-                </label>
-                <label>
-                    Categoria final
-                    <input type="text" list="category-options" data-field="categoryFinal" data-id="${escapeHtml(tx.id)}" value="${escapeAttribute(tx.categoryFinal || '')}">
-                </label>
-                <label>
-                    Memo final
-                    <input type="text" data-field="memoFinal" data-id="${escapeHtml(tx.id)}" value="${escapeAttribute(tx.memoFinal || '')}">
-                </label>
-            </div>
-            <div class="card-actions">
-                <button class="button ghost" type="button" data-action="prefill-from-transaction" data-id="${escapeHtml(tx.id)}">Criar regra</button>
             </div>
         `;
-        dom.transactionsList.appendChild(card);
+        dom.reviewGrid.appendChild(row);
+
+        if (isExpanded) {
+            dom.reviewGrid.appendChild(buildSplitsRow(tx));
+        }
     });
+}
+
+function buildSplitsRow(tx) {
+    const splits = Array.isArray(tx.splits) ? tx.splits : [];
+    const total = parseFloat(getTxAbsAmount(tx)) || 0;
+    const partial = splits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+    const diff = round2(total - partial);
+    const ok = Math.abs(diff) < 0.005 && splits.length > 0;
+
+    const wrap = document.createElement('div');
+    wrap.className = `splits-row ${ok ? 'ok' : 'diff'}`;
+    wrap.dataset.id = tx.id;
+
+    const lines = splits.map((split, index) => `
+        <div class="split-line" data-split-id="${escapeAttribute(split.id)}">
+            <span class="split-index">${index + 1}</span>
+            <input type="number" step="0.01" min="0" data-field="split.amount" data-id="${escapeAttribute(tx.id)}" data-split-id="${escapeAttribute(split.id)}" value="${escapeAttribute(split.amount || '')}" placeholder="0.00">
+            <input type="text" list="category-options" data-field="split.category" data-id="${escapeAttribute(tx.id)}" data-split-id="${escapeAttribute(split.id)}" value="${escapeAttribute(split.category || '')}" placeholder="Categoria">
+            <input type="text" data-field="split.memo" data-id="${escapeAttribute(tx.id)}" data-split-id="${escapeAttribute(split.id)}" value="${escapeAttribute(split.memo || '')}" placeholder="Memo">
+            <button type="button" class="icon-btn" data-action="remove-split" data-id="${escapeAttribute(tx.id)}" data-split-id="${escapeAttribute(split.id)}" title="Remover split">&times;</button>
+        </div>
+    `).join('');
+
+    wrap.innerHTML = `
+        <div class="splits-head">
+            <strong>Splits</strong>
+            <button type="button" class="button ghost small-btn" data-action="add-split" data-id="${escapeAttribute(tx.id)}">+ linha</button>
+            ${splits.length > 0 ? `<button type="button" class="button ghost small-btn" data-action="restore-single" data-id="${escapeAttribute(tx.id)}">Restaurar single</button>` : ''}
+        </div>
+        ${lines || '<p class="small">Clique <strong>+ linha</strong> para adicionar o primeiro split.</p>'}
+        <div class="splits-summary">
+            <span>Total: ${total.toFixed(2)}</span>
+            <span>Parcial: ${partial.toFixed(2)}</span>
+            <span class="status-indicator ${ok ? 'ok' : 'diff'}">${ok ? 'OK' : `Diff ${diff.toFixed(2)}`}</span>
+        </div>
+    `;
+    return wrap;
+}
+
+function getTxDirection(tx) {
+    if (tx.outflow && !tx.inflow) return 'out';
+    if (tx.inflow && !tx.outflow) return 'in';
+    return tx.outflow ? 'out' : 'in';
+}
+
+function getTxAbsAmount(tx) {
+    const raw = tx.outflow || tx.inflow || '';
+    const parsed = parseFloat(String(raw).replace(',', '.'));
+    return Number.isFinite(parsed) ? String(parsed) : '';
+}
+
+function round2(value) {
+    return Math.round(value * 100) / 100;
 }
 
 function onTransactionInput(event) {
@@ -371,7 +393,53 @@ function onTransactionInput(event) {
     if (!input || !state.review) return;
     const transaction = state.review.transactions.find((tx) => tx.id === input.dataset.id);
     if (!transaction) return;
-    transaction[input.dataset.field] = input.value;
+
+    const field = input.dataset.field;
+
+    if (field === 'amountAbs') {
+        applyAmountEdit(transaction, input.value);
+        return;
+    }
+
+    if (field.startsWith('split.')) {
+        const splitField = field.slice('split.'.length);
+        const split = (transaction.splits || []).find((s) => s.id === input.dataset.splitId);
+        if (!split) return;
+        split[splitField] = input.value;
+        refreshSplitsSummary(transaction);
+        return;
+    }
+
+    transaction[field] = input.value;
+}
+
+function applyAmountEdit(transaction, rawValue) {
+    const parsed = parseFloat(String(rawValue).replace(',', '.'));
+    const value = Number.isFinite(parsed) && parsed >= 0 ? parsed.toFixed(2) : '';
+    const direction = getTxDirection(transaction);
+    if (direction === 'in') {
+        transaction.inflow = value;
+        transaction.outflow = '';
+    } else {
+        transaction.outflow = value;
+        transaction.inflow = '';
+    }
+    refreshSplitsSummary(transaction);
+}
+
+function refreshSplitsSummary(transaction) {
+    if (!Array.isArray(transaction.splits) || transaction.splits.length === 0) return;
+    const existing = dom.reviewGrid.querySelector(`.splits-row[data-id="${cssEscape(transaction.id)}"]`);
+    if (!existing) return;
+    const updated = buildSplitsRow(transaction);
+    existing.replaceWith(updated);
+}
+
+function cssEscape(value) {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+        return CSS.escape(value);
+    }
+    return String(value).replace(/["\\\]]/g, '\\$&');
 }
 
 function onTransactionChange(event) {
@@ -382,36 +450,84 @@ function onTransactionChange(event) {
     transaction.selected = checkbox.checked;
     recalculateSummary();
     renderSummary();
-    renderTransactions();
+    renderGrid();
 }
 
 function onTransactionClick(event) {
-    const button = event.target.closest('[data-action="prefill-from-transaction"]');
-    if (!button || !state.review) return;
-    const transaction = state.review.transactions.find((tx) => tx.id === button.dataset.id);
+    const target = event.target.closest('[data-action]');
+    if (!target || !state.review) return;
+    const transaction = state.review.transactions.find((tx) => tx.id === target.dataset.id);
     if (!transaction) return;
 
-    const draft = transaction.suggestedRuleDraft || {
-        accountId: transaction.accountId,
-        bankAccountId: transaction.bankAccountId,
-        accountName: transaction.accountName,
-        pattern: transaction.payeeNormalized || transaction.payeeRaw,
-        replacement: transaction.payeeFinal || transaction.payeeRaw,
-        category: transaction.categoryFinal || '',
-        categoryId: '',
-        memoTemplate: transaction.memoFinal || '',
-        isRegex: false
-    };
-
-    fillRuleForm(draft, `Baseado em: ${transaction.payeeRaw}`);
-}
-
-function onSuggestionClick(event) {
-    const button = event.target.closest('[data-action="use-suggestion"]');
-    if (!button || !state.review) return;
-    const suggestion = state.review.suggestions.find((item) => item.suggestionKey === button.dataset.key);
-    if (!suggestion) return;
-    fillRuleForm(suggestion.draft, `Sugestao local (${suggestion.occurrenceCount} ocorrencias)`);
+    switch (target.dataset.action) {
+        case 'prefill-from-transaction': {
+            const draft = transaction.suggestedRuleDraft || {
+                accountId: transaction.accountId,
+                bankAccountId: transaction.bankAccountId,
+                accountName: transaction.accountName,
+                pattern: transaction.payeeNormalized || transaction.payeeRaw,
+                replacement: transaction.payeeFinal || transaction.payeeRaw,
+                category: transaction.categoryFinal || '',
+                categoryId: '',
+                memoTemplate: transaction.memoFinal || '',
+                isRegex: false
+            };
+            fillRuleForm(draft, `Baseado em: ${transaction.payeeRaw}`);
+            return;
+        }
+        case 'toggle-direction': {
+            const direction = getTxDirection(transaction);
+            if (direction === 'out') {
+                transaction.inflow = transaction.outflow || '';
+                transaction.outflow = '';
+            } else {
+                transaction.outflow = transaction.inflow || '';
+                transaction.inflow = '';
+            }
+            renderGrid();
+            return;
+        }
+        case 'toggle-splits': {
+            if (state.expandedSplits.has(transaction.id)) {
+                state.expandedSplits.delete(transaction.id);
+            } else {
+                state.expandedSplits.add(transaction.id);
+            }
+            renderGrid();
+            return;
+        }
+        case 'add-split': {
+            if (!Array.isArray(transaction.splits)) {
+                transaction.splits = [];
+            }
+            const total = parseFloat(getTxAbsAmount(transaction)) || 0;
+            const used = transaction.splits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+            const suggested = Math.max(0, round2(total - used));
+            transaction.splits.push({
+                id: `split-${Date.now()}-${transaction.splits.length}`,
+                amount: suggested > 0 ? suggested.toFixed(2) : '',
+                category: '',
+                memo: ''
+            });
+            state.expandedSplits.add(transaction.id);
+            renderGrid();
+            return;
+        }
+        case 'remove-split': {
+            if (!Array.isArray(transaction.splits)) return;
+            transaction.splits = transaction.splits.filter((s) => s.id !== target.dataset.splitId);
+            if (transaction.splits.length === 0) {
+                transaction.splits = null;
+            }
+            renderGrid();
+            return;
+        }
+        case 'restore-single': {
+            transaction.splits = null;
+            renderGrid();
+            return;
+        }
+    }
 }
 
 function fillRuleForm(draft, contextLabel) {
@@ -500,12 +616,21 @@ async function loadCategories() {
     state.categories = await StorageManager.getCategories();
     dom.categoriesList.innerHTML = '';
     dom.ruleCategory.innerHTML = '<option value="">Opcional</option>';
+    if (dom.categoryOptions) {
+        dom.categoryOptions.innerHTML = '';
+    }
 
     state.categories.forEach((category) => {
         const option = document.createElement('option');
         option.value = category.name;
         option.textContent = category.name;
         dom.ruleCategory.appendChild(option);
+
+        if (dom.categoryOptions) {
+            const datalistOption = document.createElement('option');
+            datalistOption.value = category.name;
+            dom.categoryOptions.appendChild(datalistOption);
+        }
 
         const tag = document.createElement('span');
         tag.className = 'tag';
@@ -552,6 +677,14 @@ async function exportSelected() {
         return;
     }
 
+    const validationError = validateForExport(selected);
+    if (validationError) {
+        dom.summaryError.textContent = validationError;
+        dom.summaryError.classList.remove('hidden');
+        dom.summaryError.classList.add('error');
+        return;
+    }
+
     const csv = BankUtils.transactionsToCsv(state.review.transactions);
     const filename = `${state.review.account?.accountId || 'budget-export'}-${new Date().toISOString().slice(0, 10)}.csv`;
     try {
@@ -562,6 +695,27 @@ async function exportSelected() {
         dom.summaryError.classList.remove('hidden');
         dom.summaryError.classList.add('error');
     }
+}
+
+function validateForExport(transactions) {
+    for (const tx of transactions) {
+        const hasAmount = (tx.outflow && String(tx.outflow).trim() !== '') || (tx.inflow && String(tx.inflow).trim() !== '');
+        if (!hasAmount) {
+            return `Transacao "${tx.payeeRaw || tx.id}" sem valor (entrada ou saida).`;
+        }
+        if (Array.isArray(tx.splits) && tx.splits.length > 0) {
+            const total = parseFloat(getTxAbsAmount(tx)) || 0;
+            const partial = tx.splits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+            if (Math.abs(round2(total - partial)) >= 0.005) {
+                return `Splits de "${tx.payeeRaw || tx.id}" somam ${partial.toFixed(2)}, total e ${total.toFixed(2)}.`;
+            }
+            const missingCategory = tx.splits.find((s) => !s.category || !String(s.category).trim());
+            if (missingCategory) {
+                return `Splits de "${tx.payeeRaw || tx.id}" tem linha sem categoria.`;
+            }
+        }
+    }
+    return null;
 }
 
 async function openManagePage() {

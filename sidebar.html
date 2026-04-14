@@ -79,29 +79,23 @@
                 </section>
             </section>
 
-            <div class="review-stack">
-                <section class="section-block">
-                    <div class="section-head">
-                        <div>
-                            <p class="label">Resolver novos itens</p>
-                            <h2>Sugestoes locais</h2>
-                        </div>
-                        <span id="suggestions-count" class="pill">0</span>
+            <section class="section-block grid-block">
+                <div class="section-head">
+                    <div>
+                        <p class="label">De bank para YNAB</p>
+                        <h2>Transacoes</h2>
                     </div>
-                    <div id="suggestions-list" class="stack"></div>
-                </section>
-
-                <section class="section-block">
-                    <div class="section-head">
-                        <div>
-                            <p class="label">Revisao final</p>
-                            <h2>Transacoes</h2>
-                        </div>
-                        <span id="transactions-count" class="pill">0</span>
-                    </div>
-                    <div id="transactions-list" class="stack"></div>
-                </section>
-            </div>
+                    <span id="grid-count" class="pill">0</span>
+                </div>
+                <datalist id="category-options"></datalist>
+                <div class="grid-header">
+                    <div>De (bank)</div>
+                    <div>Para (YNAB)</div>
+                    <div class="grid-action-col">Acao</div>
+                    <div class="grid-check-col" title="Selecionar">&#10003;</div>
+                </div>
+                <div id="review-grid" role="grid"></div>
+            </section>
         </section>
 
         <section id="manage-panel" class="panel">

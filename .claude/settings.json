@@ -3,7 +3,13 @@
     "allow": [
       "Bash(CI=true powershell -ExecutionPolicy Bypass -File ./build.ps1 -Target all)",
       "Bash(CI=true powershell -ExecutionPolicy Bypass -File ./build.ps1 -Target firefox)",
-      "Bash(powershell -ExecutionPolicy Bypass -File ./dist/_verify.ps1)"
+      "Bash(powershell -ExecutionPolicy Bypass -File ./dist/_verify.ps1)",
+      "Bash(grep -E \"\\\\.js$|\\\\.html$\")",
+      "Bash(awk '{print $NF}')",
+      "Bash(grep -i \"ynab\" c:/work/workspace/valtoni/budget-exporter/*.md)",
+      "Bash(node --check sidebar.js)",
+      "Bash(node --check bank-utils.js)",
+      "Bash(node --check background.js)"
     ]
   }
 }

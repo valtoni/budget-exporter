@@ -516,18 +516,43 @@ async function buildReviewState(accountId, rows = []) {
 
 function transactionsToCsv(transactions = []) {
     const header = ['Date', 'Payee', 'Category', 'Memo', 'Outflow', 'Inflow'];
-    const body = transactions
-        .filter((tx) => tx && tx.selected !== false)
-        .map((tx) => [
-            tx.dateIso || tx.dateRaw || '',
-            tx.payeeFinal || tx.payeeRaw || '',
-            tx.categoryFinal || '',
-            tx.memoFinal || '',
-            tx.outflow || '',
-            tx.inflow || ''
-        ].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(','));
+    const quote = (value) => `"${String(value).replace(/"/g, '""')}"`;
+    const rows = [];
 
-    return [header.join(','), ...body].join('\n');
+    transactions
+        .filter((tx) => tx && tx.selected !== false)
+        .forEach((tx) => {
+            const hasSplits = Array.isArray(tx.splits) && tx.splits.length > 0;
+            const date = tx.dateIso || tx.dateRaw || '';
+            const payee = tx.payeeFinal || tx.payeeRaw || '';
+
+            if (!hasSplits) {
+                rows.push([
+                    date,
+                    payee,
+                    tx.categoryFinal || '',
+                    tx.memoFinal || '',
+                    tx.outflow || '',
+                    tx.inflow || ''
+                ].map(quote).join(','));
+                return;
+            }
+
+            const isOutflow = !!tx.outflow;
+            tx.splits.forEach((split) => {
+                const amount = String(split.amount || '').trim();
+                rows.push([
+                    date,
+                    payee,
+                    split.category || '',
+                    split.memo || '',
+                    isOutflow ? amount : '',
+                    isOutflow ? '' : amount
+                ].map(quote).join(','));
+            });
+        });
+
+    return [header.join(','), ...rows].join('\n');
 }
 
 async function toCsv(rows = [], accountId, dateParser, amountParser) {
