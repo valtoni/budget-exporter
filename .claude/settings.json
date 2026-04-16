@@ -9,7 +9,12 @@
       "Bash(grep -i \"ynab\" c:/work/workspace/valtoni/budget-exporter/*.md)",
       "Bash(node --check sidebar.js)",
       "Bash(node --check bank-utils.js)",
-      "Bash(node --check background.js)"
+      "Bash(node --check background.js)",
+      "Bash(node --check manage.js)",
+      "Bash(node --check ynab-client.js)",
+      "Bash(node --check storage-manager.js)",
+      "Bash(powershell -ExecutionPolicy Bypass -File ./dist/_check_ynab.ps1)",
+      "Bash(rm dist/_check_ynab.ps1)"
     ]
   }
 }

@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     bindEvents();
     await StorageManager.init();
     await loadCategories();
+    await refreshYnabButtonVisibility();
 
     const current = await getActiveReview();
     if (current) {
@@ -70,6 +71,7 @@ function cacheDom() {
 function bindEvents() {
     document.getElementById('refresh-review').addEventListener('click', refreshReview);
     document.getElementById('export-selected').addEventListener('click', exportSelected);
+    document.getElementById('send-to-ynab').addEventListener('click', sendToYnab);
     document.getElementById('open-manage-page').addEventListener('click', openManagePage);
     document.getElementById('manage-open-page').addEventListener('click', openManagePage);
     document.getElementById('clear-rule-form').addEventListener('click', clearRuleForm);
@@ -129,6 +131,7 @@ function applyReview(review) {
     renderCutoffStatus();
     renderSummary();
     renderGrid();
+    refreshYnabButtonVisibility();
     if (state.ruleDraft && state.review?.account) {
         dom.ruleAccountName.value = state.review.account.displayName;
     }
@@ -720,6 +723,96 @@ function validateForExport(transactions) {
 
 async function openManagePage() {
     await runtimeAPI.sendMessage({ type: 'OPEN_MANAGE_PAGE' });
+}
+
+async function refreshYnabButtonVisibility() {
+    const group = document.getElementById('ynab-action-group');
+    const select = document.getElementById('ynab-destination');
+    if (!group || !select) return;
+
+    const bankAccountId = state.review?.account?.accountId;
+    let cfg;
+    try {
+        const response = await runtimeAPI.sendMessage({ type: 'YNAB_GET_CONFIG' });
+        cfg = response?.config;
+    } catch (_) {
+        cfg = null;
+    }
+
+    state.ynabConfig = cfg || null;
+
+    const destinations = bankAccountId && cfg?.accountMap ? (cfg.accountMap[bankAccountId] || []) : [];
+    const ready = !!cfg?.connected && !!cfg?.budgetId && destinations.length > 0;
+
+    group.classList.toggle('hidden', !ready);
+    if (!ready) {
+        select.innerHTML = '';
+        select.classList.add('hidden');
+        return;
+    }
+
+    select.innerHTML = '';
+    destinations.forEach((dest) => {
+        const opt = document.createElement('option');
+        opt.value = dest.id;
+        opt.textContent = dest.name || dest.id;
+        select.appendChild(opt);
+    });
+
+    const lastUsedId = cfg?.lastUsedYnabAccount?.[bankAccountId];
+    if (lastUsedId && destinations.some((d) => d.id === lastUsedId)) {
+        select.value = lastUsedId;
+    }
+
+    select.classList.toggle('hidden', destinations.length <= 1);
+}
+
+async function sendToYnab() {
+    if (!state.review || !state.review.transactions?.length) return;
+
+    dom.summaryError.textContent = '';
+    dom.summaryError.classList.add('hidden');
+
+    const selected = state.review.transactions.filter((tx) => tx.selected !== false);
+    if (selected.length === 0) {
+        dom.summaryError.textContent = 'Selecione ao menos uma transacao para enviar.';
+        dom.summaryError.classList.remove('hidden');
+        dom.summaryError.classList.add('error');
+        return;
+    }
+
+    const validationError = validateForExport(selected);
+    if (validationError) {
+        dom.summaryError.textContent = validationError;
+        dom.summaryError.classList.remove('hidden');
+        dom.summaryError.classList.add('error');
+        return;
+    }
+
+    const destinationSelect = document.getElementById('ynab-destination');
+    const ynabAccountId = destinationSelect?.value || null;
+
+    setInlineMessage(dom.ruleMessage, 'Enviando ao YNAB...', 'success');
+
+    const response = await runtimeAPI.sendMessage({
+        type: 'YNAB_SEND_TRANSACTIONS',
+        transactions: selected,
+        ynabAccountId
+    });
+
+    if (!response?.ok) {
+        dom.summaryError.textContent = response?.error || 'Falha ao enviar ao YNAB.';
+        dom.summaryError.classList.remove('hidden');
+        dom.summaryError.classList.add('error');
+        setInlineMessage(dom.ruleMessage, '', '');
+        return;
+    }
+
+    const { created = [], duplicates = [], skipped = [] } = response.result || {};
+    const parts = [`${created.length} criadas`];
+    if (duplicates.length) parts.push(`${duplicates.length} duplicadas (ignoradas pelo YNAB)`);
+    if (skipped.length) parts.push(`${skipped.length} puladas (sem mapeamento)`);
+    setInlineMessage(dom.ruleMessage, `YNAB: ${parts.join(' · ')}.`, 'success');
 }
 
 function setMode(mode) {

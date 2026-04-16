@@ -46,6 +46,8 @@
   },
   "background": {
     "scripts": [
+      "ynab-config.js",
+      "ynab-client.js",
       "background.js"
     ],
     "preferred_environment": [
@@ -59,11 +61,13 @@
     "tabs",
     "downloads",
     "activeTab",
-    "scripting"
+    "scripting",
+    "identity"
   ],
   "host_permissions": [
     "*://*.desjardins.com/*",
-    "*://*.koho.ca/*"
+    "*://*.koho.ca/*",
+    "https://api.ynab.com/*"
   ],
   "web_accessible_resources": [
     {

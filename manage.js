@@ -44,6 +44,14 @@ function setupEventListeners() {
         showTab('tab-accounts', 'accounts-nav');
     });
 
+    document.getElementById('ynab-nav').addEventListener('click', (e) => {
+        e.preventDefault();
+        showTab('tab-ynab', 'ynab-nav');
+        loadYnabSection();
+    });
+
+    setupYnabSection();
+
     // Form de adicionar regra
     document.getElementById('add-rule-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1000,4 +1008,217 @@ function filterDropdown(searchTerm, dropdown) {
             li.style.display = 'none';
         }
     });
+}
+
+// ==================== YNAB Integration ====================
+
+const runtimeAPI = typeof browser !== 'undefined' ? browser.runtime : chrome.runtime;
+const ynabState = {
+    config: null,
+    budgets: [],
+    accounts: []
+};
+
+function setupYnabSection() {
+    const connectBtn = document.getElementById('ynab-connect-btn');
+    if (!connectBtn) return;
+
+    document.getElementById('ynab-copy-redirect').addEventListener('click', () => {
+        const input = document.getElementById('ynab-redirect-uri');
+        input.select();
+        try {
+            navigator.clipboard?.writeText(input.value);
+            showYnabMessage('Redirect URI copiada.', 'success');
+        } catch (_) {
+            showYnabMessage('Selecione e copie manualmente (Ctrl+C).', 'info');
+        }
+    });
+
+    connectBtn.addEventListener('click', async () => {
+        if (!ynabState.config?.clientId) {
+            showYnabMessage('Configure ynab-config.js antes de conectar.', 'warning');
+            return;
+        }
+        showYnabMessage('Abrindo popup de autenticacao YNAB...', 'info');
+        const response = await runtimeAPI.sendMessage({ type: 'YNAB_CONNECT' });
+        if (!response?.ok) {
+            showYnabMessage(response?.error || 'Falha ao conectar.', 'danger');
+            return;
+        }
+        ynabState.config = response.config;
+        showYnabMessage('Conectado com sucesso.', 'success');
+        await refreshYnabStatus();
+        await loadYnabBudgets();
+    });
+
+    document.getElementById('ynab-disconnect-btn').addEventListener('click', async () => {
+        const response = await runtimeAPI.sendMessage({ type: 'YNAB_DISCONNECT' });
+        if (!response?.ok) {
+            showYnabMessage(response?.error || 'Falha ao desconectar.', 'danger');
+            return;
+        }
+        ynabState.config = response.config;
+        ynabState.budgets = [];
+        ynabState.accounts = [];
+        showYnabMessage('Desconectado.', 'success');
+        refreshYnabStatus();
+        document.getElementById('ynab-budget-card').hidden = true;
+        document.getElementById('ynab-mapping-card').hidden = true;
+    });
+
+    document.getElementById('ynab-budget-select').addEventListener('change', async (e) => {
+        const budgetId = e.target.value;
+        if (!budgetId) return;
+        await loadYnabAccounts(budgetId);
+    });
+
+    document.getElementById('ynab-save-mapping-btn').addEventListener('click', async () => {
+        const budgetId = document.getElementById('ynab-budget-select').value;
+        const accountMap = {};
+        document.querySelectorAll('[data-bank-group]').forEach((group) => {
+            const bankId = group.dataset.bankGroup;
+            const destinations = [];
+            group.querySelectorAll('input[type="checkbox"]:checked').forEach((cb) => {
+                destinations.push({ id: cb.value, name: cb.dataset.accountName || '' });
+            });
+            if (destinations.length > 0) accountMap[bankId] = destinations;
+        });
+        const response = await runtimeAPI.sendMessage({
+            type: 'YNAB_SAVE_MAPPING',
+            budgetId,
+            accountMap
+        });
+        if (!response?.ok) {
+            showYnabMessage(response?.error || 'Falha ao salvar mapeamento.', 'danger');
+            return;
+        }
+        ynabState.config = response.config;
+        showYnabMessage('Mapeamento salvo. Botao "Enviar ao YNAB" disponivel na sidebar.', 'success');
+    });
+}
+
+async function loadYnabSection() {
+    await refreshYnabStatus();
+    if (ynabState.config?.connected) {
+        await loadYnabBudgets();
+    }
+}
+
+async function refreshYnabStatus() {
+    const response = await runtimeAPI.sendMessage({ type: 'YNAB_GET_CONFIG' });
+    if (!response?.ok) {
+        document.getElementById('ynab-status').textContent = 'Erro ao ler configuracao YNAB.';
+        return;
+    }
+    ynabState.config = response.config;
+    const cfg = ynabState.config;
+
+    const setupCard = document.getElementById('ynab-setup-card');
+    const connectCard = document.getElementById('ynab-connect-card');
+    const statusEl = document.getElementById('ynab-status');
+    const connectBtn = document.getElementById('ynab-connect-btn');
+    const disconnectBtn = document.getElementById('ynab-disconnect-btn');
+    const redirectInput = document.getElementById('ynab-redirect-uri');
+
+    redirectInput.value = cfg.redirectUri || '(redirect URI indisponivel — recarregue a extensao)';
+
+    const hasClientId = !!cfg.clientId;
+    setupCard.hidden = hasClientId;
+    connectCard.hidden = !hasClientId;
+
+    if (!hasClientId) return;
+
+    if (cfg.connected) {
+        const expiresIn = cfg.tokenExpiresAt ? Math.max(0, cfg.tokenExpiresAt - Date.now()) : 0;
+        const minutes = Math.floor(expiresIn / 60000);
+        const who = cfg.userEmail || 'usuario YNAB';
+        statusEl.textContent = `Conectado como ${who} · token expira em ~${minutes} min`;
+        connectBtn.hidden = true;
+        disconnectBtn.hidden = false;
+    } else {
+        statusEl.textContent = 'Nao conectado. Clique em "Conectar ao YNAB" para autenticar.';
+        connectBtn.hidden = false;
+        disconnectBtn.hidden = true;
+    }
+}
+
+async function loadYnabBudgets() {
+    const response = await runtimeAPI.sendMessage({ type: 'YNAB_LIST_BUDGETS' });
+    if (!response?.ok) {
+        showYnabMessage(response?.error || 'Falha ao listar orcamentos.', 'danger');
+        return;
+    }
+    ynabState.budgets = response.budgets;
+    const select = document.getElementById('ynab-budget-select');
+    select.innerHTML = '<option value="">Selecione um orcamento</option>';
+    response.budgets.forEach((b) => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = b.name;
+        select.appendChild(opt);
+    });
+    document.getElementById('ynab-budget-card').hidden = false;
+
+    if (ynabState.config?.budgetId) {
+        select.value = ynabState.config.budgetId;
+        await loadYnabAccounts(ynabState.config.budgetId);
+    }
+}
+
+async function loadYnabAccounts(budgetId) {
+    const response = await runtimeAPI.sendMessage({ type: 'YNAB_LIST_ACCOUNTS', budgetId });
+    if (!response?.ok) {
+        showYnabMessage(response?.error || 'Falha ao listar contas.', 'danger');
+        return;
+    }
+    ynabState.accounts = response.accounts;
+
+    const bankAccounts = Object.values(BankUtils.ACCOUNTS).filter((a) => a.accountId !== 'all');
+    const rowsContainer = document.getElementById('ynab-mapping-rows');
+    rowsContainer.innerHTML = '';
+
+    const savedMap = ynabState.config?.accountMap || {};
+
+    bankAccounts.forEach((bank) => {
+        const savedIds = new Set((savedMap[bank.accountId] || []).map((entry) => entry.id || entry));
+        const group = document.createElement('div');
+        group.className = 'mb-3 pb-2 border-bottom';
+        group.dataset.bankGroup = bank.accountId;
+        group.innerHTML = `
+            <div class="mb-1"><strong>${bank.displayName}</strong> <small class="text-muted">(tipo / dominio de regras)</small></div>
+            <div class="small text-muted mb-2">Marque todas as contas YNAB que recebem transacoes deste tipo.</div>
+            <div class="row g-2"></div>
+        `;
+        const row = group.querySelector('.row');
+        ynabState.accounts.forEach((ynabAccount) => {
+            const col = document.createElement('div');
+            col.className = 'col-12 col-md-6';
+            const inputId = `ynab-dest-${bank.accountId}-${ynabAccount.id}`;
+            col.innerHTML = `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="${inputId}" value="${ynabAccount.id}" data-account-name="${escapeAttr(ynabAccount.name)}" ${savedIds.has(ynabAccount.id) ? 'checked' : ''}>
+                    <label class="form-check-label small" for="${inputId}">${ynabAccount.name} <span class="text-muted">(${ynabAccount.type})</span></label>
+                </div>
+            `;
+            row.appendChild(col);
+        });
+        rowsContainer.appendChild(group);
+    });
+
+    document.getElementById('ynab-mapping-card').hidden = false;
+}
+
+function escapeAttr(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function showYnabMessage(text, variant) {
+    const el = document.getElementById('ynab-message');
+    if (!el) return;
+    el.textContent = text;
+    el.className = `alert alert-${variant || 'info'}`;
 }

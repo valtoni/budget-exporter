@@ -30,6 +30,9 @@
                     <li class="nav-item">
                         <a class="nav-link" href="#" id="accounts-nav">Contas</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="ynab-nav">YNAB</a>
+                    </li>
                 </ul>
 
                 <!-- Center: Search Bar -->
@@ -189,6 +192,63 @@
                     </form>
 
                     <div class="row g-2" id="accounts-list"></div>
+                </div>
+
+                <!-- Tab: YNAB -->
+                <div class="tab-pane fade" id="tab-ynab" role="tabpanel">
+                    <h5 class="mb-3">Integração YNAB</h5>
+
+                    <!-- Bootstrap card: shown only when client_id is not configured yet -->
+                    <div class="card mb-3 border-warning" id="ynab-setup-card" hidden>
+                        <div class="card-body">
+                            <h6 class="card-title text-warning">Configuracao inicial necessaria</h6>
+                            <p class="small mb-2">O <code>client_id</code> do YNAB ainda nao foi configurado. Faca uma vez:</p>
+                            <ol class="small mb-2">
+                                <li>Abra <a href="https://app.ynab.com/settings/developer" target="_blank" rel="noopener">app.ynab.com/settings/developer</a> e crie um <strong>OAuth Application</strong>.</li>
+                                <li>No campo <em>Redirect URI(s)</em>, cole o URI abaixo.</li>
+                                <li>Salve. O YNAB gera um <code>client_id</code>.</li>
+                                <li>Edite <code>ynab-config.js</code> na pasta da extensao, cole o <code>client_id</code> em <code>CLIENT_ID: ''</code>, salve e recarregue a extensao.</li>
+                            </ol>
+                            <label class="form-label small mb-1">Redirect URI desta extensao</label>
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" id="ynab-redirect-uri" readonly title="Redirect URI da extensao" placeholder="Carregando...">
+                                <button class="btn btn-outline-secondary" id="ynab-copy-redirect" type="button">Copiar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connect card: shown when client_id is configured -->
+                    <div class="card mb-3" id="ynab-connect-card" hidden>
+                        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <h6 class="card-title mb-1">Conta YNAB</h6>
+                                <div id="ynab-status" class="small text-muted">Status: nao conectado.</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary" id="ynab-connect-btn" type="button">Conectar ao YNAB</button>
+                                <button class="btn btn-outline-danger" id="ynab-disconnect-btn" type="button" hidden>Desconectar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3" id="ynab-budget-card" hidden>
+                        <div class="card-body">
+                            <h6 class="card-title">Orcamento</h6>
+                            <label class="form-label small">Escolha o orcamento ativo</label>
+                            <select class="form-select" id="ynab-budget-select" title="Orcamento YNAB ativo"></select>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3" id="ynab-mapping-card" hidden>
+                        <div class="card-body">
+                            <h6 class="card-title">Mapeamento de contas</h6>
+                            <p class="small text-muted mb-3">Para cada conta bancaria, escolha a conta YNAB correspondente.</p>
+                            <div id="ynab-mapping-rows"></div>
+                            <button class="btn btn-success" id="ynab-save-mapping-btn" type="button">Salvar mapeamento</button>
+                        </div>
+                    </div>
+
+                    <div id="ynab-message" class="alert d-none" role="alert"></div>
                 </div>
             </div>
         </div>

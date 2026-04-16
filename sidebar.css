@@ -399,6 +399,21 @@ input[type="checkbox"] {
     font-size: 12px;
 }
 
+.ynab-action-group {
+    display: flex;
+    gap: 6px;
+    align-items: stretch;
+}
+
+.ynab-destination-select {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--line-strong);
+    background: var(--slate-0);
+    max-width: 180px;
+}
+
 .page-copy,
 .small,
 .empty-state {

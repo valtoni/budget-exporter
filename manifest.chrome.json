@@ -29,11 +29,13 @@
     "downloads",
     "activeTab",
     "scripting",
-    "sidePanel"
+    "sidePanel",
+    "identity"
   ],
   "host_permissions": [
     "*://*.desjardins.com/*",
-    "*://*.koho.ca/*"
+    "*://*.koho.ca/*",
+    "https://api.ynab.com/*"
   ],
   "web_accessible_resources": [
     {

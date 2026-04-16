@@ -1,4 +1,11 @@
 // MV3 service worker: opens the sidebar, stores the active review, and exports CSV files.
+// In Chrome/Edge the service worker loads ynab-client.js via importScripts.
+// In Firefox the background runs in document env and loads ynab-client.js via manifest "scripts".
+if (typeof self !== 'undefined' && typeof importScripts === 'function') {
+    if (!self.YNAB_CONFIG) importScripts('ynab-config.js');
+    if (!self.YnabClient) importScripts('ynab-client.js');
+}
+
 const storageArea = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
 const runtimeAPI = typeof browser !== 'undefined' ? browser.runtime : chrome.runtime;
 const actionAPI = typeof browser !== 'undefined' ? browser.action : chrome.action;
@@ -9,6 +16,7 @@ const sidePanelAPI = typeof chrome !== 'undefined' ? chrome.sidePanel : undefine
 const pageActionAPI = typeof browser !== 'undefined' ? browser.pageAction : undefined;
 const commandsAPI = typeof browser !== 'undefined' ? browser.commands : chrome.commands;
 const scriptingAPI = typeof browser !== 'undefined' ? browser.scripting : chrome.scripting;
+const identityAPI = typeof browser !== 'undefined' ? browser.identity : chrome.identity;
 
 const ACTIVE_REVIEW_KEY = 'active_review';
 const ACCOUNTS = {
@@ -130,6 +138,196 @@ async function exportCsv(csv, filename) {
     });
 }
 
+// ---------------- YNAB integration ----------------
+
+function getYnabRedirectUri() {
+    if (identityAPI?.getRedirectURL) {
+        return identityAPI.getRedirectURL();
+    }
+    return null;
+}
+
+async function getYnabConfigSafe() {
+    const items = await storageArea.get('ynab_config');
+    return items.ynab_config || {};
+}
+
+async function patchYnabConfigSafe(partial) {
+    const current = await getYnabConfigSafe();
+    const next = Object.assign({}, current, partial);
+    await storageArea.set({ ynab_config: next });
+    return next;
+}
+
+async function ynabConnect(requestedClientId) {
+    const clientId = getHardcodedClientId() || requestedClientId || (await getYnabConfigSafe()).clientId;
+    if (!clientId) throw new Error('client_id nao informado. Edite ynab-config.js.');
+    if (!identityAPI?.launchWebAuthFlow) {
+        throw new Error('API de autenticacao nao disponivel neste navegador.');
+    }
+    const redirectUri = getYnabRedirectUri();
+    const authUrl = self.YnabClient.buildAuthorizeUrl(clientId, redirectUri);
+
+    // launchWebAuthFlow: callback API (Chrome) vs Promise (Firefox)
+    const callbackUrl = await new Promise((resolve, reject) => {
+        try {
+            const maybePromise = identityAPI.launchWebAuthFlow(
+                { url: authUrl, interactive: true },
+                (result) => {
+                    const err = (typeof chrome !== 'undefined' && chrome.runtime?.lastError) || null;
+                    if (err) return reject(new Error(err.message || String(err)));
+                    if (!result) return reject(new Error('Autenticacao cancelada.'));
+                    resolve(result);
+                }
+            );
+            if (maybePromise && typeof maybePromise.then === 'function') {
+                maybePromise.then(resolve, reject);
+            }
+        } catch (e) {
+            reject(e);
+        }
+    });
+
+    const parsed = self.YnabClient.parseImplicitCallback(callbackUrl);
+    if (!parsed?.token) throw new Error('Token nao recebido do YNAB.');
+
+    let userEmail = '';
+    try {
+        const user = await self.YnabClient.getUser(parsed.token);
+        userEmail = user?.id || '';
+    } catch (_) {
+        // non-fatal: token might still be valid; we store it regardless.
+    }
+
+    const config = await patchYnabConfigSafe({
+        clientId,
+        token: parsed.token,
+        tokenExpiresAt: parsed.expiresAt,
+        userEmail,
+        lastConnectedAt: Date.now()
+    });
+    return sanitizeYnabConfigForResponse(config);
+}
+
+async function ynabDisconnect() {
+    const current = await getYnabConfigSafe();
+    const { clientId, budgetId, accountMap } = current;
+    await storageArea.set({
+        ynab_config: { clientId: clientId || '', budgetId: budgetId || '', accountMap: accountMap || {} }
+    });
+    return sanitizeYnabConfigForResponse(await getYnabConfigSafe());
+}
+
+function isYnabTokenValid(config) {
+    if (!config?.token) return false;
+    if (!config.tokenExpiresAt) return true; // unknown expiration, assume valid
+    return Date.now() < config.tokenExpiresAt - 30_000; // 30s safety margin
+}
+
+function getHardcodedClientId() {
+    if (typeof self !== 'undefined' && self.YNAB_CONFIG && typeof self.YNAB_CONFIG.CLIENT_ID === 'string') {
+        return self.YNAB_CONFIG.CLIENT_ID.trim();
+    }
+    return '';
+}
+
+// Normalizes the stored accountMap into { bankAccountId: [{id, name}, ...] } shape.
+// Accepts legacy { bankAccountId: 'uuid' } string form as well.
+function normalizeAccountMap(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    for (const [bankId, value] of Object.entries(raw)) {
+        if (!value) continue;
+        if (typeof value === 'string') {
+            out[bankId] = [{ id: value, name: '' }];
+        } else if (Array.isArray(value)) {
+            out[bankId] = value
+                .map((entry) => {
+                    if (!entry) return null;
+                    if (typeof entry === 'string') return { id: entry, name: '' };
+                    if (typeof entry === 'object' && entry.id) {
+                        return { id: String(entry.id), name: String(entry.name || '') };
+                    }
+                    return null;
+                })
+                .filter(Boolean);
+        } else if (typeof value === 'object' && value.id) {
+            out[bankId] = [{ id: String(value.id), name: String(value.name || '') }];
+        }
+    }
+    return out;
+}
+
+function sanitizeYnabConfigForResponse(config) {
+    const hardcoded = getHardcodedClientId();
+    const effectiveClientId = hardcoded || (config?.clientId || '');
+    const accountMap = normalizeAccountMap(config?.accountMap);
+    const lastUsed = (config && typeof config.lastUsedYnabAccount === 'object' && config.lastUsedYnabAccount) || {};
+    if (!config) return { connected: false, clientId: effectiveClientId, clientIdHardcoded: !!hardcoded, redirectUri: getYnabRedirectUri(), accountMap: {}, lastUsedYnabAccount: {} };
+    return {
+        connected: isYnabTokenValid(config),
+        clientId: effectiveClientId,
+        clientIdHardcoded: !!hardcoded,
+        budgetId: config.budgetId || '',
+        accountMap,
+        lastUsedYnabAccount: lastUsed,
+        userEmail: config.userEmail || '',
+        tokenExpiresAt: config.tokenExpiresAt || 0,
+        redirectUri: getYnabRedirectUri()
+    };
+}
+
+async function ynabListBudgets() {
+    const config = await getYnabConfigSafe();
+    if (!isYnabTokenValid(config)) throw new Error('Token YNAB expirado ou ausente. Reconecte.');
+    return self.YnabClient.listBudgets(config.token);
+}
+
+async function ynabListAccounts(budgetId) {
+    const config = await getYnabConfigSafe();
+    if (!isYnabTokenValid(config)) throw new Error('Token YNAB expirado ou ausente. Reconecte.');
+    return self.YnabClient.listAccounts(config.token, budgetId);
+}
+
+async function ynabSendTransactions(transactions, ynabAccountIdOverride) {
+    const config = await getYnabConfigSafe();
+    if (!isYnabTokenValid(config)) throw new Error('Token YNAB expirado ou ausente. Reconecte.');
+    if (!config.budgetId) throw new Error('Orcamento YNAB nao selecionado. Abra "Gerenciar" e escolha um orcamento.');
+
+    const normalizedMap = normalizeAccountMap(config.accountMap);
+    const payload = [];
+    const skipped = [];
+
+    for (const tx of transactions) {
+        const destinations = normalizedMap[tx.bankAccountId] || [];
+        const ynabAccountId = ynabAccountIdOverride || destinations[0]?.id;
+        if (!ynabAccountId) {
+            skipped.push({ id: tx.id, reason: `Sem mapping YNAB para ${tx.bankAccountId}` });
+            continue;
+        }
+        payload.push(self.YnabClient.toYnabTransaction(tx, ynabAccountId));
+    }
+
+    if (payload.length === 0) {
+        return { created: [], duplicates: [], skipped };
+    }
+
+    const result = await self.YnabClient.postTransactions(config.token, config.budgetId, payload);
+
+    // Remember the last YNAB account used for this bank type (first tx's type).
+    if (ynabAccountIdOverride && transactions[0]?.bankAccountId) {
+        const last = Object.assign({}, config.lastUsedYnabAccount || {});
+        last[transactions[0].bankAccountId] = ynabAccountIdOverride;
+        await patchYnabConfigSafe({ lastUsedYnabAccount: last });
+    }
+
+    return {
+        created: result.transactions || [],
+        duplicates: result.duplicate_import_ids || [],
+        skipped
+    };
+}
+
 runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
         switch (message.type) {
@@ -163,6 +361,49 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
             case 'OPEN_MANAGE_PAGE': {
                 await runtimeAPI.openOptionsPage();
                 sendResponse({ ok: true });
+                return;
+            }
+            case 'YNAB_GET_CONFIG': {
+                const config = await getYnabConfigSafe();
+                sendResponse({ ok: true, config: sanitizeYnabConfigForResponse(config) });
+                return;
+            }
+            case 'YNAB_SAVE_CLIENT_ID': {
+                const next = await patchYnabConfigSafe({ clientId: message.clientId || '' });
+                sendResponse({ ok: true, config: sanitizeYnabConfigForResponse(next) });
+                return;
+            }
+            case 'YNAB_CONNECT': {
+                const config = await ynabConnect(message.clientId);
+                sendResponse({ ok: true, config });
+                return;
+            }
+            case 'YNAB_DISCONNECT': {
+                const config = await ynabDisconnect();
+                sendResponse({ ok: true, config });
+                return;
+            }
+            case 'YNAB_LIST_BUDGETS': {
+                const budgets = await ynabListBudgets();
+                sendResponse({ ok: true, budgets });
+                return;
+            }
+            case 'YNAB_LIST_ACCOUNTS': {
+                const accounts = await ynabListAccounts(message.budgetId);
+                sendResponse({ ok: true, accounts });
+                return;
+            }
+            case 'YNAB_SAVE_MAPPING': {
+                const next = await patchYnabConfigSafe({
+                    budgetId: message.budgetId || '',
+                    accountMap: message.accountMap || {}
+                });
+                sendResponse({ ok: true, config: sanitizeYnabConfigForResponse(next) });
+                return;
+            }
+            case 'YNAB_SEND_TRANSACTIONS': {
+                const result = await ynabSendTransactions(message.transactions || [], message.ynabAccountId || null);
+                sendResponse({ ok: true, result });
                 return;
             }
             default:

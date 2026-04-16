@@ -696,6 +696,39 @@ const BudgetStorage = {
         await this.setPayeeRules(safeRules);
         await this.setCategories(safeCategories);
         await this.setAccounts(safeAccounts);
+    },
+
+    // ---------------- YNAB OAuth config ----------------
+    // Stored under key `ynab_config`. Shape:
+    // { clientId, token, tokenExpiresAt, userEmail, budgetId, accountMap: { bankAccountId: ynabAccountUuid } }
+    async getYnabConfig() {
+        const key = 'ynab_config';
+        if (isFirefox) {
+            const items = await storageAPI.local.get(key);
+            return items[key] || {};
+        }
+        return await new Promise((resolve) => {
+            storageAPI.local.get(key, (items) => resolve(items[key] || {}));
+        });
+    },
+
+    async setYnabConfig(config) {
+        const key = 'ynab_config';
+        const payload = { [key]: config || {} };
+        if (isFirefox) {
+            await storageAPI.local.set(payload);
+        } else {
+            await new Promise((resolve) => {
+                storageAPI.local.set(payload, () => resolve());
+            });
+        }
+    },
+
+    async patchYnabConfig(partial) {
+        const current = await this.getYnabConfig();
+        const next = { ...current, ...partial };
+        await this.setYnabConfig(next);
+        return next;
     }
 };
 
