@@ -575,6 +575,21 @@ input[type="checkbox"] {
     align-content: start;
 }
 
+.sent-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    display: inline-block;
+}
+
+.sent-dot.sent {
+    background: var(--green-600);
+}
+
+.sent-dot.not-sent {
+    background: var(--slate-300);
+}
+
 .status-dot {
     width: 10px;
     height: 10px;
@@ -795,4 +810,37 @@ input[type="checkbox"] {
     .filter-chip {
         flex-basis: 100%;
     }
+}
+
+.sync-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: rgba(255, 255, 255, 0.92);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+}
+
+.sync-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--slate-200);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.sync-label {
+    font-size: 14px;
+    color: var(--muted);
+    text-align: center;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }

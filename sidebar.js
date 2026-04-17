@@ -143,6 +143,9 @@ function normalizeReviewShape() {
         if (!Array.isArray(tx.splits)) {
             tx.splits = null;
         }
+        if (typeof tx.ynabSentAt !== 'string') {
+            tx.ynabSentAt = null;
+        }
     });
 }
 
@@ -322,6 +325,7 @@ function renderGrid() {
                 </div>
             </div>
             <div class="cell-action">
+                <span class="sent-dot ${tx.ynabSentAt ? 'sent' : 'not-sent'}" title="${tx.ynabSentAt ? 'Enviado em ' + escapeAttribute(tx.ynabSentAt.replace('T', ' ').slice(0, 16)) : 'Nao enviado ao YNAB'}"></span>
                 <span class="status-dot ${tx.matchStatus}" title="${escapeAttribute(statusLabel(tx.matchStatus))}"></span>
                 <button type="button" class="icon-btn" data-action="prefill-from-transaction" data-id="${escapeHtml(tx.id)}" title="Criar regra">&#9889;</button>
                 <button type="button" class="icon-btn ${isExpanded ? 'active' : ''}" data-action="toggle-splits" data-id="${escapeHtml(tx.id)}" title="Dividir em categorias (split)">&#9783;</button>
@@ -792,27 +796,91 @@ async function sendToYnab() {
     const destinationSelect = document.getElementById('ynab-destination');
     const ynabAccountId = destinationSelect?.value || null;
 
-    setInlineMessage(dom.ruleMessage, 'Enviando ao YNAB...', 'success');
+    showSyncOverlay();
 
-    const response = await runtimeAPI.sendMessage({
-        type: 'YNAB_SEND_TRANSACTIONS',
-        transactions: selected,
-        ynabAccountId
-    });
+    const minDelay = new Promise((resolve) => setTimeout(resolve, 600));
 
-    if (!response?.ok) {
-        dom.summaryError.textContent = response?.error || 'Falha ao enviar ao YNAB.';
+    let response;
+    try {
+        [response] = await Promise.all([
+            runtimeAPI.sendMessage({
+                type: 'YNAB_SEND_TRANSACTIONS',
+                transactions: selected,
+                ynabAccountId
+            }),
+            minDelay
+        ]);
+    } catch (error) {
+        hideSyncOverlay();
+        dom.summaryError.textContent = error?.message || 'Erro de rede ao enviar ao YNAB.';
         dom.summaryError.classList.remove('hidden');
         dom.summaryError.classList.add('error');
-        setInlineMessage(dom.ruleMessage, '', '');
         return;
     }
 
-    const { created = [], duplicates = [], skipped = [] } = response.result || {};
+    if (!response?.ok) {
+        hideSyncOverlay();
+        dom.summaryError.textContent = response?.error || 'Falha ao enviar ao YNAB.';
+        dom.summaryError.classList.remove('hidden');
+        dom.summaryError.classList.add('error');
+        return;
+    }
+
+    const { created = [], duplicates = [], skipped = [], sentIds = [] } = response.result || {};
+    const now = new Date().toISOString();
+    const sentIdSet = new Set(sentIds);
+
+    state.review.transactions.forEach((tx) => {
+        if (sentIdSet.has(tx.id)) {
+            tx.ynabSentAt = now;
+        }
+    });
+
+    recalculateSelectionsAfterSend();
+    await persistReview();
+    recalculateSummary();
+    updateFilterLabels();
+    renderSummary();
+    renderGrid();
+
+    hideSyncOverlay();
+
     const parts = [`${created.length} criadas`];
     if (duplicates.length) parts.push(`${duplicates.length} duplicadas (ignoradas pelo YNAB)`);
     if (skipped.length) parts.push(`${skipped.length} puladas (sem mapeamento)`);
     setInlineMessage(dom.ruleMessage, `YNAB: ${parts.join(' · ')}.`, 'success');
+}
+
+function recalculateSelectionsAfterSend() {
+    if (!state.review?.transactions) return;
+    const today = new Date().toISOString().slice(0, 10);
+    state.review.transactions.forEach((tx) => {
+        if (tx.ynabSentAt) {
+            tx.selected = false;
+            return;
+        }
+        const txDate = tx.dateIso || '';
+        tx.selected = txDate >= today;
+    });
+}
+
+async function persistReview() {
+    if (!state.review) return;
+    try {
+        await runtimeAPI.sendMessage({ type: 'STORE_ACTIVE_REVIEW', review: state.review });
+    } catch (_) {
+        // non-fatal
+    }
+}
+
+function showSyncOverlay() {
+    const overlay = document.getElementById('sync-overlay');
+    if (overlay) overlay.classList.remove('hidden');
+}
+
+function hideSyncOverlay() {
+    const overlay = document.getElementById('sync-overlay');
+    if (overlay) overlay.classList.add('hidden');
 }
 
 function setMode(mode) {

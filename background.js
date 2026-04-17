@@ -297,6 +297,7 @@ async function ynabSendTransactions(transactions, ynabAccountIdOverride) {
     const normalizedMap = normalizeAccountMap(config.accountMap);
     const payload = [];
     const skipped = [];
+    const sentIds = [];
 
     for (const tx of transactions) {
         const destinations = normalizedMap[tx.bankAccountId] || [];
@@ -306,15 +307,15 @@ async function ynabSendTransactions(transactions, ynabAccountIdOverride) {
             continue;
         }
         payload.push(self.YnabClient.toYnabTransaction(tx, ynabAccountId));
+        sentIds.push(tx.id);
     }
 
     if (payload.length === 0) {
-        return { created: [], duplicates: [], skipped };
+        return { created: [], duplicates: [], skipped, sentIds: [] };
     }
 
     const result = await self.YnabClient.postTransactions(config.token, config.budgetId, payload);
 
-    // Remember the last YNAB account used for this bank type (first tx's type).
     if (ynabAccountIdOverride && transactions[0]?.bankAccountId) {
         const last = Object.assign({}, config.lastUsedYnabAccount || {});
         last[transactions[0].bankAccountId] = ynabAccountIdOverride;
@@ -324,7 +325,8 @@ async function ynabSendTransactions(transactions, ynabAccountIdOverride) {
     return {
         created: result.transactions || [],
         duplicates: result.duplicate_import_ids || [],
-        skipped
+        skipped,
+        sentIds
     };
 }
 
