@@ -14,7 +14,8 @@
       "Bash(node --check ynab-client.js)",
       "Bash(node --check storage-manager.js)",
       "Bash(powershell -ExecutionPolicy Bypass -File ./dist/_check_ynab.ps1)",
-      "Bash(rm dist/_check_ynab.ps1)"
+      "Bash(rm dist/_check_ynab.ps1)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/work/workspace/valtoni/budget-exporter/manifest.chrome.json','utf8'\\)\\); JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/work/workspace/valtoni/budget-exporter/manifest.json','utf8'\\)\\); console.log\\('both manifests parse OK'\\);\")"
     ]
   }
 }

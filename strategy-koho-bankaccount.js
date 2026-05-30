@@ -1,14 +1,76 @@
-// Koho - Seletores DOM e conversão CSV
+// Koho — Extração via API JSON
+//
+// Lê transações a partir das respostas da API do Koho capturadas por
+// transaction-capture.js. O endpoint relevante é:
+//
+//   GET https://api.koho.ca/1.0/user/past_transactions
+//
+// Resposta: { transactions: [...], last_timestamp, results_count, ... }
+//
+// Cada transação tem (entre outros):
+//   - identifier       — chave para deduplicação
+//   - when             — ISO 8601 da data real da transação (preferido)
+//   - postTimestamp    — ISO 8601 da liquidação; "0001-01-01..." para pending
+//   - amount           — string tipo "-$0.12" / "$215.00"
+//   - details          — descrição amigável (merchant, "E-Transfer From:", "KOHO Essential Plan", etc.)
 
-// Seletores para extrair transações do DOM
-// Koho usa divs com classes Tailwind específicas
-export const selectors = {
-    container: 'div.flex.flex-col.p-0.md\\:px-24.md\\:pb-24',
-    row: 'div.flex.items-center.justify-between.border-b.border-grey-200.py-8'
-};
+export const apiMatchers = [
+    { method: 'GET', urlPattern: /\/user\/past_transactions(\?|$|\/)/i }
+];
 
-// Função de conversão para CSV no formato YNAB
-// Usa funções compartilhadas de BankUtils
+export function extractFromCaptures(captures) {
+    const seen = new Set();
+    const rows = [];
+
+    for (const capture of captures) {
+        let parsed;
+        try {
+            parsed = JSON.parse(capture.body);
+        } catch (e) {
+            continue;
+        }
+
+        const list = Array.isArray(parsed?.transactions) ? parsed.transactions : [];
+        for (const tx of list) {
+            if (!tx || typeof tx !== 'object') continue;
+
+            const id = tx.identifier || '';
+            if (id) {
+                if (seen.has(id)) continue;
+                seen.add(id);
+            }
+
+            const isoDate = isoDateFrom(tx.when) || isoDateFrom(tx.postTimestamp);
+            if (!isoDate) continue;
+
+            const payee = String(tx.details || tx.merchant?.name || tx.description || '').trim();
+            if (!payee) continue;
+
+            const rawAmount = String(tx.amount || '').trim();
+            if (!rawAmount) continue;
+
+            // parseKohoAmount distingue inflow/outflow pela presença de '+'.
+            // A API omite o '+' nos valores positivos, então prefixamos manualmente.
+            const normalizedAmount = /^-/.test(rawAmount) ? rawAmount : `+${rawAmount}`;
+
+            rows.push({
+                date: isoDate,
+                payee,
+                amount: normalizedAmount
+            });
+        }
+    }
+
+    return rows;
+}
+
+function isoDateFrom(value) {
+    const s = String(value || '');
+    if (!s || s.startsWith('0001')) return '';
+    const match = s.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : '';
+}
+
 export async function toCsv(rows = []) {
     return window.BankUtils.toCsv(
         rows,
@@ -18,36 +80,4 @@ export async function toCsv(rows = []) {
     );
 }
 
-// Função customizada para extrair transações do DOM do Koho
-export function extractTransactions() {
-    const transactions = [];
-
-    // Seleciona todas as linhas de transação
-    const rows = document.querySelectorAll('div.flex.items-center.justify-between.border-b.border-grey-200.py-8');
-
-    rows.forEach(row => {
-        // Extrai payee (descrição) - div com classe type-paragraph-medium
-        const payeeElement = row.querySelector('.type-paragraph-medium');
-        const payee = payeeElement ? payeeElement.innerText.trim() : '';
-
-        // Extrai data e categoria - div com classe type-subtitle
-        const dateElement = row.querySelector('.type-subtitle');
-        const dateText = dateElement ? dateElement.innerText.trim() : '';
-
-        // Extrai valor - div com classe type-number-small
-        const amountElement = row.querySelector('.type-number-small');
-        const amount = amountElement ? amountElement.innerText.trim() : '';
-
-        if (payee && dateText && amount) {
-            transactions.push({
-                date: dateText,
-                payee: payee,
-                amount: amount
-            });
-        }
-    });
-
-    return transactions;
-}
-
-export default { selectors, toCsv, extractTransactions };
+export default { apiMatchers, extractFromCaptures, toCsv };

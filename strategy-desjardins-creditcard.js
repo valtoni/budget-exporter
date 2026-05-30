@@ -1,81 +1,33 @@
-// strategy-desjardins-creditcard.js
-// Desjardins (Cartão de Crédito) - Extrato de cartão de crédito
+// Desjardins — Cartão de Crédito — Extração via API JSON
+//
+// Esta strategy lê transações a partir das respostas JSON capturadas por
+// transaction-capture.js, e não mais do DOM. Para configurar:
+//
+//   1. Logar no AccèsD e abrir a página /sommaire-perso/sommaire/sommaire-spa/CC/...
+//   2. No console, ativar o modo descoberta:
+//        localStorage.setItem('BUDGET_EXPORTER_DEBUG', '1')
+//   3. Recarregar a página (F5).
+//   4. No console, identificar a linha [budget-exporter] cuja URL retorna
+//      a lista de transações do cartão (provavelmente um endpoint distinto
+//      do extrato corrente — pode haver "card" ou "credit" na URL).
+//   5. Preencher abaixo:
+//        - apiMatchers[].urlPattern com regex casando essa URL
+//        - extractFromCaptures(captures) mapeando para { date, payee, amount,
+//          inferredYear }. Diferença vs conta corrente: o valor "cobrado" no
+//          cartão geralmente vem como positivo; verifique a convenção de sinal
+//          do JSON para preencher inflow/outflow corretamente em parseDesjardinsAmount.
 
-// Seletores para extrair transações do DOM (mesma família de componentes DSD)
-export const selectors = {
-    table: 'dsd-table.dsd-table.hydrated, dsd-table-v3-1-0.dsd-mb-md.hydrated.dsd-table-host-v3-1-0.dsd-component',
-    row: 'tbody tr',
-    cells: {
-        date: 0,      // coluna com data (dentro de .dsd-sr-only)
-        payee: 1,     // coluna com descrição
-        amount: -1    // última célula com classe dsd-cell-num (valor negativo indica contagem reversa)
-    }
-};
+export const apiMatchers = [
+    // TODO: substituir pelo regex real do endpoint do extrato de cartão Desjardins.
+];
 
-// Mesma lógica robusta da strategy de conta para capturar a descrição
-function extractDescription(td) {
-    if (!td) return '';
-
-    // 1) Formato moderno
-    const spanDesc = td.querySelector('.descriptionTransaction');
-    if (spanDesc) {
-        return spanDesc.innerText.trim();
-    }
-
-    // 2) Fallback: td com class "description" (layout antigo)
-    if (td.classList.contains('description')) {
-        const divIconCol = td.querySelector('.iconCol');
-        if (!divIconCol) {
-            return td.innerText.trim();
-        }
-        const p = divIconCol.querySelector('p');
-        const spans = p?.querySelectorAll('span');
-        if (spans?.length >= 2) {
-            return spans[1].innerText.trim();
-        }
-        return p?.innerText.trim() || '';
-    }
-
-    // 3) Fallback genérico: primeiro <span> não vazio
-    const fallbackSpan = td.querySelector('span');
-    if (fallbackSpan && fallbackSpan.innerText.trim()) {
-        return fallbackSpan.innerText.trim();
-    }
-
-    return td.innerText.trim();
-}
-
-function detectStatementYear(container = document) {
-    const sourceText = (
-        container.querySelector?.('caption')?.textContent ||
-        container.textContent ||
-        document.body?.textContent ||
-        ''
+export function extractFromCaptures(_captures) {
+    throw new Error(
+        'Desjardins (cartao de credito): extractFromCaptures ainda nao implementado. '
+        + 'Veja instrucoes em strategy-desjardins-creditcard.js.'
     );
-    const normalizedText = sourceText
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-
-    const patterns = [
-        /facturees?\s+en\s+[a-z]+\s+(\d{4})/i,
-        /transactions?\s+de\s+[a-z]+\s+(\d{4})/i,
-        /\b(janvier|janv|jan|fevrier|fev|mars|avril|avr|mai|juin|juillet|juil|aout|septembre|sept|sep|octobre|oct|novembre|nov|decembre|dec)\s+(\d{4})\b/i
-    ];
-
-    for (const pattern of patterns) {
-        const match = normalizedText.match(pattern);
-        if (!match) continue;
-        const year = match[match.length - 1];
-        if (/^\d{4}$/.test(year)) {
-            return year;
-        }
-    }
-
-    return String(new Date().getFullYear());
 }
 
-// Converte para CSV no formato YNAB
-// Usa funções compartilhadas de BankUtils
 export async function toCsv(rows = []) {
     return window.BankUtils.toCsv(
         rows,
@@ -85,48 +37,4 @@ export async function toCsv(rows = []) {
     );
 }
 
-// Extrai as transações publicadas do DOM
-export function extractTransactions() {
-    const tables = Array.from(document.querySelectorAll(
-        'dsd-table.dsd-table.hydrated, dsd-table-v3-1-0.dsd-mb-md.hydrated.dsd-table-host-v3-1-0.dsd-component'
-    ));
-    const transactions = [];
-
-    tables.forEach(dsdTable => {
-        const inferredYear = detectStatementYear(dsdTable);
-        const tbody = dsdTable.querySelector('tbody');
-        if (!tbody) return;
-
-        const rows = Array.from(tbody.querySelectorAll('tr'));
-
-        rows.forEach(row => {
-            const tds = row.querySelectorAll('td');
-            if (tds.length < 3) return;
-
-            // Extrai data
-            const dateText = tds[0].querySelector('.dsd-sr-only')?.innerText.trim() || tds[0].innerText.trim();
-
-            // Extrai descrição usando função especializada
-            const description = extractDescription(tds[1]);
-
-            // Extrai valor da última célula com classe dsd-cell-num
-            // Em cartão de crédito, tipicamente é a última coluna numérica
-            const cellNumTds = [...tds].filter(td => td.classList.contains('dsd-cell-num'));
-            const lastTd = cellNumTds.length >= 1 ? cellNumTds[cellNumTds.length - 1] : null;
-            const amountRaw = lastTd?.innerText.trim() || '';
-
-            if (dateText && description) {
-                transactions.push({
-                    date: dateText,
-                    inferredYear,
-                    payee: description,
-                    amount: amountRaw
-                });
-            }
-        });
-    });
-
-    return transactions;
-}
-
-export default { selectors, toCsv, extractTransactions };
+export default { apiMatchers, extractFromCaptures, toCsv };

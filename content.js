@@ -1,6 +1,44 @@
 // Content script: extracts transactions from the page and prepares review data.
 const runtimeAPI = typeof browser !== 'undefined' ? browser.runtime : chrome.runtime;
 
+const CAPTURE_SOURCE_TAG = 'budget-exporter-capture';
+const CAPTURE_BUFFER_MAX = 50;
+const CAPTURE_TTL_MS = 10 * 60 * 1000;
+
+const capturedResponses = [];
+
+window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    const data = event.data;
+    if (!data || data.source !== CAPTURE_SOURCE_TAG) return;
+    if (typeof data.url !== 'string' || typeof data.body !== 'string') return;
+
+    capturedResponses.push({
+        url: data.url,
+        method: data.method || 'GET',
+        status: data.status || 0,
+        body: data.body,
+        ts: data.ts || Date.now()
+    });
+
+    pruneCapturedResponses();
+});
+
+function pruneCapturedResponses() {
+    const cutoff = Date.now() - CAPTURE_TTL_MS;
+    while (capturedResponses.length && capturedResponses[0].ts < cutoff) {
+        capturedResponses.shift();
+    }
+    while (capturedResponses.length > CAPTURE_BUFFER_MAX) {
+        capturedResponses.shift();
+    }
+}
+
+function getCapturedResponses() {
+    pruneCapturedResponses();
+    return capturedResponses.slice();
+}
+
 async function extractTransactionsForReview() {
     const accountId = rootBankUtils().detectBank(window.location.href);
     if (!accountId) {
@@ -8,13 +46,35 @@ async function extractTransactionsForReview() {
     }
 
     const bankModule = await rootBankUtils().loadBankModule(accountId);
-    if (!bankModule.extractTransactions || typeof bankModule.extractTransactions !== 'function') {
-        throw new Error(`Extrator nao configurado para ${accountId}`);
+    if (!Array.isArray(bankModule.apiMatchers) || bankModule.apiMatchers.length === 0) {
+        throw new Error(`Extrator nao configurado para ${accountId} (sem apiMatchers).`);
+    }
+    if (typeof bankModule.extractFromCaptures !== 'function') {
+        throw new Error(`Extrator nao configurado para ${accountId} (sem extractFromCaptures).`);
     }
 
-    const rows = bankModule.extractTransactions();
+    const captures = getCapturedResponses();
+    const matched = captures.filter((c) =>
+        bankModule.apiMatchers.some((m) =>
+            (!m.method || m.method.toUpperCase() === c.method.toUpperCase())
+            && m.urlPattern instanceof RegExp
+            && m.urlPattern.test(c.url)
+        )
+    );
+
+    if (matched.length === 0) {
+        throw new Error(
+            'Nenhuma resposta da API capturada nesta sessao. '
+            + 'Atualize a pagina (F5) e tente coletar de novo.'
+        );
+    }
+
+    const rows = bankModule.extractFromCaptures(matched);
     if (!Array.isArray(rows) || rows.length === 0) {
-        throw new Error('Nenhuma transacao encontrada na pagina.');
+        throw new Error(
+            'A API do banco respondeu, mas nenhuma transacao pode ser extraida. '
+            + 'O formato pode ter mudado — a extensao precisa ser atualizada.'
+        );
     }
 
     const review = await rootBankUtils().buildReviewState(accountId, rows);

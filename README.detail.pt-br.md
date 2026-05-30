@@ -210,11 +210,17 @@ Leia tambem: [README-BUILD.md](README-BUILD.md)
 
 ### Adicionar novo banco
 
-1. crie um novo arquivo `strategy-<conta>.js`
-2. implemente `extractTransactions()`
-3. implemente `toCsv()` usando `BankUtils.toCsv(...)`
-4. adicione o host em `manifest.json` e `manifest.chrome.json` (em `host_permissions`, `content_scripts.matches` e `web_accessible_resources.matches`)
-5. registre a conta em `bank-utils.js`
+1. adicione o host em `manifest.json` e `manifest.chrome.json` (em `host_permissions`, `content_scripts.matches` e `web_accessible_resources.matches`)
+2. registre a conta em `bank-utils.js` (BANK_ALIASES, ACCOUNTS, ACCOUNT_PROCESSING)
+3. logue no banco, abra a pagina de extrato e ative o modo descoberta no console:
+   `localStorage.setItem('BUDGET_EXPORTER_DEBUG', '1')` e recarregue
+4. no console, identifique a URL marcada como `← candidate?` (resposta JSON com array de transacoes)
+5. crie `strategy-<conta>.js` exportando:
+   - `apiMatchers` — array de `{ method, urlPattern }` para a(s) URL(s) identificada(s)
+   - `extractFromCaptures(captures)` — normaliza o JSON para `[{date, payee, amount}]`
+   - `toCsv()` usando `BankUtils.toCsv(...)`
+
+A extracao roda exclusivamente em cima das respostas JSON capturadas — nao ha mais parsing de DOM/CSS.
 
 ## Roadmap atual
 

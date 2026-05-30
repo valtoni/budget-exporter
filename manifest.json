@@ -72,7 +72,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "strategy-*.js"
+        "strategy-*.js",
+        "transaction-capture.js"
       ],
       "matches": [
         "*://*.desjardins.com/*",
@@ -93,6 +94,17 @@
     }
   },
   "content_scripts": [
+    {
+      "matches": [
+        "*://*.desjardins.com/*",
+        "*://*.koho.ca/*"
+      ],
+      "js": [
+        "capture-loader.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    },
     {
       "matches": [
         "*://*.desjardins.com/*",
