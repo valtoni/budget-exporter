@@ -26,7 +26,9 @@
       "Bash(npm run *)",
       "Bash(node -e \"const z=require\\('zlib'\\),fs=require\\('fs'\\);console.log\\('JS  gz:',z.gzipSync\\(fs.readFileSync\\('sidebar.bundle.js'\\)\\).length,'b'\\);console.log\\('CSS gz:',z.gzipSync\\(fs.readFileSync\\('sidebar.bundle.css'\\)\\).length,'b'\\);\")",
       "PowerShell($env:CI='true'; *)",
-      "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[System.IO.Compression.ZipFile]::OpenRead\\('dist\\\\budget-exporter-v1.3.0-chrome.zip'\\); $z.Entries | Select-Object -ExpandProperty FullName | Sort-Object; $z.Dispose\\(\\))"
+      "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[System.IO.Compression.ZipFile]::OpenRead\\('dist\\\\budget-exporter-v1.3.0-chrome.zip'\\); $z.Entries | Select-Object -ExpandProperty FullName | Sort-Object; $z.Dispose\\(\\))",
+      "Bash(node -e \"const z=require\\('zlib'\\),fs=require\\('fs'\\);console.log\\('manage.js  gz:',z.gzipSync\\(fs.readFileSync\\('manage.bundle.js'\\)\\).length,'b'\\);console.log\\('manage.css gz:',z.gzipSync\\(fs.readFileSync\\('manage.bundle.css'\\)\\).length,'b'\\);\")",
+      "PowerShell($env:CI='true'; .\\\\build.ps1 -Target chrome 2>&1 | Select-Object -Last 15)"
     ]
   }
 }

@@ -3,260 +3,290 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Budget Exporter - Gerenciamento</title>
-    <link href="bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="manage.css">
+    <title>Budget Exporter — Gestão</title>
+    <link rel="stylesheet" href="manage.bundle.css">
 </head>
 <body>
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-success py-3">
-        <div class="container-xxl">
-            <!-- Left: Brand + Navigation -->
-            <span class="navbar-brand mb-0 h1">
-                <img src="icons/icon.svg" alt="Budget Exporter" height="24" class="me-2">
-            </span>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
+    <div class="app-shell">
 
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="#" id="rules-nav">Regras de Payee</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" id="categories-nav">Categorias</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" id="accounts-nav">Contas</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" id="ynab-nav">YNAB</a>
-                    </li>
-                </ul>
+        <!-- ───────── Rail ───────── -->
+        <aside class="rail">
+            <div>
+                <div class="rail-brand">
+                    <img src="icons/icon.svg" alt="">
+                    <span class="rail-brand-text">Budget Exporter</span>
+                </div>
 
-                <!-- Center: Search Bar -->
-                <div class="bd-search mx-auto" id="search-container">
-                    <button type="button" class="DocSearch-Button" aria-label="Search (Ctrl+F)">
-                        <span class="DocSearch-Button-Container">
-                            <svg width="20" height="20" viewBox="0 0 20 20" class="DocSearch-Search-Icon">
-                                <path d="M14.386 14.386l4.0877 4.0877-4.0877-4.0877c-2.9418 2.9419-7.7115 2.9419-10.6533 0-2.9419-2.9418-2.9419-7.7115 0-10.6533 2.9418-2.9419 7.7115-2.9419 10.6533 0 2.9419 2.9418 2.9419 7.7115 0 10.6533z" stroke="currentColor" fill="none" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round"></path>
-                            </svg>
-                            <span class="DocSearch-Button-Placeholder">Search</span>
-                        </span>
-                        <span class="DocSearch-Button-Keys">
-                            <kbd class="DocSearch-Button-Key">
-                                <svg width="15" height="15" class="DocSearch-Control-Key-Icon">
-                                    <path d="M4.505 4.496h2M5.505 5.496v5M8.216 4.496l.055 5.993M10 7.5c.333.333.5.667.5 1v2M12.326 4.5v5.996M8.384 4.496c1.674 0 2.116 0 2.116 1.5s-.442 1.5-2.116 1.5M3.205 9.303c-.09.448-.277 1.21-1.241 1.203C1 10.5.5 9.513.5 8V7c0-1.57.5-2.5 1.464-2.494.964.006 1.134.598 1.24 1.342M12.553 10.5h1.953" stroke-width="1.2" stroke="currentColor" fill="none" stroke-linecap="square"></path>
-                                </svg>
-                            </kbd>
-                            <kbd class="DocSearch-Button-Key">F</kbd>
-                        </span>
+                <nav class="rail-nav" id="rail-nav" aria-label="Seções">
+                    <a class="rail-item is-active" id="rules-nav" href="#tab-rules" data-section="rules">
+                        <span>Regras</span>
+                        <span class="rail-count" data-count="rules">0</span>
+                    </a>
+                    <a class="rail-item" id="categories-nav" href="#tab-categories" data-section="categories">
+                        <span>Categorias</span>
+                        <span class="rail-count" data-count="categories">0</span>
+                    </a>
+                    <a class="rail-item" id="accounts-nav" href="#tab-accounts" data-section="accounts">
+                        <span>Contas</span>
+                        <span class="rail-count" data-count="accounts">0</span>
+                    </a>
+                    <a class="rail-item" id="ynab-nav" href="#tab-ynab" data-section="ynab">
+                        <span>YNAB</span>
+                        <span class="ynab-status-dot" id="ynab-status-dot" title="Status YNAB"></span>
+                    </a>
+                </nav>
+
+                <div class="rail-section-title">Dados</div>
+                <div class="rail-actions">
+                    <button class="rail-item" id="btn-export" type="button">
+                        <span>Exportar tudo</span>
                     </button>
-                    <input type="text" class="search-input d-none" placeholder="Search" aria-label="Search" id="search-input">
-                </div>
-
-                <!-- Right: Links + Export/Import + Version -->
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item me-2">
-                        <button class="btn btn-outline-light btn-sm" id="btn-export" title="Exportar dados">
-                            Exportar
-                        </button>
-                    </li>
-                    <li class="nav-item me-2">
-                        <input type="file" id="import-file" accept="application/json" class="d-none" />
-                        <button class="btn btn-outline-light btn-sm" id="btn-import" title="Importar dados">
-                            Importar
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="https://github.com/valtoni" target="_blank">
-                            GitHub
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="https://x.com/javaltoni" target="_blank">
-                            X
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <span class="nav-link version">v1.0.0</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Tab Content -->
-    <div class="container-xxl bd-gutter mt-3 my-md-4 bd-layout">
-        <div class="bg-white">
-            <div class="tab-content p-4">
-                <!-- Tab: Regras de Payee -->
-                <div class="tab-pane fade show active" id="tab-rules" role="tabpanel">
-                    <h5 class="mb-3" id="form-title">Nova Regra</h5>
-
-                    <form id="add-rule-form">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="rule-account" class="form-label">Conta</label>
-                                <div class="dropdown">
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" id="rule-account" placeholder="Selecione ou pesquise uma conta" required autocomplete="off" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                            <span class="visually-hidden">Toggle Dropdown</span>
-                                        </button>
-                                        <ul class="dropdown-menu w-100" id="account-dropdown"></ul>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label for="rule-category" class="form-label">Categoria</label>
-                                <div class="dropdown">
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" id="rule-category" placeholder="Selecione ou pesquise uma categoria" autocomplete="off" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                            <span class="visually-hidden">Toggle Dropdown</span>
-                                        </button>
-                                        <ul class="dropdown-menu w-100" id="category-dropdown"></ul>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <label for="rule-pattern" class="form-label mb-0">Padrão de busca</label>
-                                    <div class="form-check mb-0">
-                                        <input type="checkbox" class="form-check-input" id="rule-regex">
-                                        <label class="form-check-label" for="rule-regex">
-                                            Usar expressão regular (regex)
-                                        </label>
-                                    </div>
-                                </div>
-                                <input type="text" class="form-control" id="rule-pattern" placeholder="Ex: METRO, IGA, etc." required>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label for="rule-replacement" class="form-label">Substituir por</label>
-                                <input type="text" class="form-control" id="rule-replacement" placeholder="Ex: Supermercado Metro">
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6 mb-3 d-none" id="memo-field">
-                                <label for="rule-memo" class="form-label">Template de Memo</label>
-                                <input type="text" class="form-control" id="rule-memo" placeholder="Ex: Compra \1">
-                                <div class="form-text">
-                                    Use grupos de captura () no padrão e referencie com \1, \2, etc.
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-success" id="submit-btn">Adicionar Regra</button>
-                            <button type="button" class="btn btn-secondary d-none" id="cancel-btn">Cancelar</button>
-                        </div>
-                    </form>
-
-                    <h5 class="mt-5 mb-3">Regras existentes</h5>
-                    <div id="rules-list">
-                        <div class="text-center text-muted py-5">Nenhuma regra cadastrada</div>
-                    </div>
-                </div>
-
-                <!-- Tab: Categorias -->
-                <div class="tab-pane fade" id="tab-categories" role="tabpanel">
-                    <h5 class="mb-3">Gerenciar Categorias</h5>
-
-                    <form id="add-category-form" class="mb-3">
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="category-name" placeholder="Nome da categoria" required>
-                            <button type="submit" class="btn btn-success">Adicionar</button>
-                        </div>
-                    </form>
-
-                    <div class="row g-2" id="categories-list"></div>
-                </div>
-
-                <!-- Tab: Contas -->
-                <div class="tab-pane fade" id="tab-accounts" role="tabpanel">
-                    <h5 class="mb-3">Gerenciar Contas</h5>
-
-                    <form id="add-account-form" class="mb-3">
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="account-name" placeholder="Nome da conta (ex: Desjardins - Credit Card)" required>
-                            <button type="submit" class="btn btn-success">Adicionar</button>
-                        </div>
-                    </form>
-
-                    <div class="row g-2" id="accounts-list"></div>
-                </div>
-
-                <!-- Tab: YNAB -->
-                <div class="tab-pane fade" id="tab-ynab" role="tabpanel">
-                    <h5 class="mb-3">Integração YNAB</h5>
-
-                    <!-- Bootstrap card: shown only when client_id is not configured yet -->
-                    <div class="card mb-3 border-warning" id="ynab-setup-card" hidden>
-                        <div class="card-body">
-                            <h6 class="card-title text-warning">Configuracao inicial necessaria</h6>
-                            <p class="small mb-2">O <code>client_id</code> do YNAB ainda nao foi configurado. Faca uma vez:</p>
-                            <ol class="small mb-2">
-                                <li>Abra <a href="https://app.ynab.com/settings/developer" target="_blank" rel="noopener">app.ynab.com/settings/developer</a> e crie um <strong>OAuth Application</strong>.</li>
-                                <li>No campo <em>Redirect URI(s)</em>, cole o URI abaixo.</li>
-                                <li>Salve. O YNAB gera um <code>client_id</code>.</li>
-                                <li>Edite <code>ynab-config.js</code> na pasta da extensao, cole o <code>client_id</code> em <code>CLIENT_ID: ''</code>, salve e recarregue a extensao.</li>
-                            </ol>
-                            <label class="form-label small mb-1">Redirect URI desta extensao</label>
-                            <div class="input-group input-group-sm">
-                                <input type="text" class="form-control" id="ynab-redirect-uri" readonly title="Redirect URI da extensao" placeholder="Carregando...">
-                                <button class="btn btn-outline-secondary" id="ynab-copy-redirect" type="button">Copiar</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Connect card: shown when client_id is configured -->
-                    <div class="card mb-3" id="ynab-connect-card" hidden>
-                        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <div>
-                                <h6 class="card-title mb-1">Conta YNAB</h6>
-                                <div id="ynab-status" class="small text-muted">Status: nao conectado.</div>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-primary" id="ynab-connect-btn" type="button">Conectar ao YNAB</button>
-                                <button class="btn btn-outline-danger" id="ynab-disconnect-btn" type="button" hidden>Desconectar</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card mb-3" id="ynab-budget-card" hidden>
-                        <div class="card-body">
-                            <h6 class="card-title">Orcamento</h6>
-                            <label class="form-label small">Escolha o orcamento ativo</label>
-                            <select class="form-select" id="ynab-budget-select" title="Orcamento YNAB ativo"></select>
-                        </div>
-                    </div>
-
-                    <div class="card mb-3" id="ynab-mapping-card" hidden>
-                        <div class="card-body">
-                            <h6 class="card-title">Mapeamento de contas</h6>
-                            <p class="small text-muted mb-3">Para cada conta bancaria, escolha a conta YNAB correspondente.</p>
-                            <div id="ynab-mapping-rows"></div>
-                            <button class="btn btn-success" id="ynab-save-mapping-btn" type="button">Salvar mapeamento</button>
-                        </div>
-                    </div>
-
-                    <div id="ynab-message" class="alert d-none" role="alert"></div>
+                    <button class="rail-item" id="btn-import" type="button">
+                        <span>Importar…</span>
+                    </button>
+                    <input type="file" id="import-file" accept="application/json" hidden>
                 </div>
             </div>
-        </div>
+
+            <div></div>
+
+            <footer class="rail-footer">
+                <div class="rail-footer-row">
+                    <a href="https://github.com/valtoni" target="_blank" rel="noopener">GitHub</a>
+                    <a href="https://x.com/javaltoni" target="_blank" rel="noopener">X</a>
+                    <span class="rail-version version">v—</span>
+                </div>
+            </footer>
+        </aside>
+
+        <!-- ───────── Main ───────── -->
+        <main class="main">
+
+            <!-- Tab: Regras -->
+            <section class="tab-pane is-active" id="tab-rules">
+                <header class="main-header">
+                    <div>
+                        <h1 class="main-title" id="rules-title">Regras de payee</h1>
+                        <p class="main-subtitle" id="rules-subtitle">Padrões que mapeiam o texto bruto para um payee final + categoria.</p>
+                    </div>
+                </header>
+
+                <div class="main-toolbar">
+                    <div class="main-search">
+                        <input type="text" id="rules-search" placeholder="Buscar regras…">
+                    </div>
+                    <span class="spacer"></span>
+                    <wa-button variant="brand" size="small" id="open-rule-dialog-btn" type="button">
+                        + Nova regra
+                    </wa-button>
+                </div>
+
+                <div class="main-body">
+                    <manage-rules-table id="rules-table"></manage-rules-table>
+                </div>
+
+                <div class="main-footer">
+                    <span id="rules-footer-info">—</span>
+                </div>
+            </section>
+
+            <!-- Tab: Categorias -->
+            <section class="tab-pane" id="tab-categories">
+                <header class="main-header">
+                    <div>
+                        <h1 class="main-title">Categorias</h1>
+                        <p class="main-subtitle">Lista usada para sugerir e classificar payees nas regras e no extrato.</p>
+                    </div>
+                </header>
+
+                <div class="main-toolbar">
+                    <form id="add-category-form" class="inline-add">
+                        <input type="text" id="category-name" placeholder="Nova categoria" required>
+                        <wa-button variant="brand" size="small" type="submit">Adicionar</wa-button>
+                    </form>
+                </div>
+
+                <div class="main-body">
+                    <div class="section-card">
+                        <chip-list id="categories-list"></chip-list>
+                    </div>
+                </div>
+
+                <div class="main-footer">
+                    <span id="categories-footer-info">—</span>
+                </div>
+            </section>
+
+            <!-- Tab: Contas -->
+            <section class="tab-pane" id="tab-accounts">
+                <header class="main-header">
+                    <div>
+                        <h1 class="main-title">Contas</h1>
+                        <p class="main-subtitle">Bancos suportados e contas customizadas. As pré-definidas (●) não podem ser removidas.</p>
+                    </div>
+                </header>
+
+                <div class="main-toolbar">
+                    <form id="add-account-form" class="inline-add">
+                        <input type="text" id="account-name" placeholder="Nova conta" required>
+                        <wa-button variant="brand" size="small" type="submit">Adicionar</wa-button>
+                    </form>
+                </div>
+
+                <div class="main-body">
+                    <div class="section-card">
+                        <chip-list id="accounts-list"></chip-list>
+                    </div>
+                </div>
+
+                <div class="main-footer">
+                    <span id="accounts-footer-info">—</span>
+                </div>
+            </section>
+
+            <!-- Tab: YNAB -->
+            <section class="tab-pane" id="tab-ynab">
+                <header class="main-header">
+                    <div>
+                        <h1 class="main-title">Integração YNAB</h1>
+                        <p class="main-subtitle">Conecte sua conta YNAB e mapeie cada banco aos destinos correspondentes.</p>
+                    </div>
+                </header>
+
+                <div class="main-body">
+                    <div class="ynab-steps">
+
+                        <!-- 1. Setup (oculto se client_id existe) -->
+                        <div class="ynab-step" id="ynab-setup-card" hidden>
+                            <div class="ynab-step-head">
+                                <span class="ynab-step-num">1</span>
+                                <h3 class="ynab-step-title">Configurar client_id</h3>
+                            </div>
+                            <div class="ynab-step-body">
+                                <p class="ynab-step-lead">O <code>client_id</code> do YNAB ainda não foi configurado. Faça uma vez:</p>
+                                <ol class="ynab-step-list">
+                                    <li>Abra <a href="https://app.ynab.com/settings/developer" target="_blank" rel="noopener">app.ynab.com/settings/developer</a> e crie um <strong>OAuth Application</strong>.</li>
+                                    <li>No campo <em>Redirect URI(s)</em>, cole o URI abaixo.</li>
+                                    <li>Salve. O YNAB gera um <code>client_id</code>.</li>
+                                    <li>Edite <code>ynab-config.js</code> na pasta da extensão, cole o <code>client_id</code> em <code>CLIENT_ID: ''</code>, salve e recarregue a extensão.</li>
+                                </ol>
+                                <label class="field">
+                                    <span class="field-label">Redirect URI desta extensão</span>
+                                    <div class="inline-input-row">
+                                        <input type="text" id="ynab-redirect-uri" readonly placeholder="Carregando…">
+                                        <wa-button appearance="plain" size="small" id="ynab-copy-redirect" type="button">Copiar</wa-button>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 2. Conexão -->
+                        <div class="ynab-step" id="ynab-connect-card" hidden>
+                            <div class="ynab-step-head">
+                                <span class="ynab-step-num">2</span>
+                                <h3 class="ynab-step-title">Conexão</h3>
+                            </div>
+                            <div class="ynab-step-body">
+                                <div class="ynab-status-line">
+                                    <span id="ynab-status">Verificando…</span>
+                                </div>
+                                <div class="ynab-button-row">
+                                    <wa-button variant="brand" size="small" id="ynab-connect-btn" type="button">Conectar ao YNAB</wa-button>
+                                    <wa-button appearance="outlined" size="small" id="ynab-disconnect-btn" type="button" hidden>Desconectar</wa-button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Orçamento -->
+                        <div class="ynab-step" id="ynab-budget-card" hidden>
+                            <div class="ynab-step-head">
+                                <span class="ynab-step-num">3</span>
+                                <h3 class="ynab-step-title">Orçamento</h3>
+                            </div>
+                            <div class="ynab-step-body">
+                                <label class="field ynab-field-narrow">
+                                    <span class="field-label">Escolha o orçamento ativo</span>
+                                    <select id="ynab-budget-select" title="Orçamento YNAB ativo"></select>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 4. Mapeamento -->
+                        <div class="ynab-step" id="ynab-mapping-card" hidden>
+                            <div class="ynab-step-head">
+                                <span class="ynab-step-num">4</span>
+                                <h3 class="ynab-step-title">Mapeamento de contas</h3>
+                            </div>
+                            <div class="ynab-step-body">
+                                <p class="ynab-mapping-lead">Para cada conta bancária, escolha as contas YNAB que recebem transações.</p>
+                                <div id="ynab-mapping-rows"></div>
+                                <div class="ynab-button-row ynab-button-row-top">
+                                    <wa-button variant="brand" size="small" id="ynab-save-mapping-btn" type="button">Salvar mapeamento</wa-button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="main-footer">
+                    <span id="ynab-footer-info">—</span>
+                </div>
+            </section>
+
+        </main>
     </div>
 
-    <script src="bootstrap.bundle.min.js"></script>
+    <!-- Rule dialog -->
+    <wa-dialog id="rule-dialog" label="Nova regra">
+        <form id="add-rule-form" class="rule-dialog-form">
+            <p class="rule-dialog-hint" id="rule-form-hint"></p>
+
+            <div class="form-grid">
+                <label class="field">
+                    <span class="field-label">Conta</span>
+                    <select id="rule-account">
+                        <option value="">Selecione…</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field-label">Categoria</span>
+                    <select id="rule-category">
+                        <option value="">Opcional</option>
+                    </select>
+                </label>
+
+                <label class="field form-span-2">
+                    <span class="field-label">Padrão</span>
+                    <input type="text" id="rule-pattern" placeholder="Ex: METRO, IGA, etc." required>
+                </label>
+                <label class="field form-span-2">
+                    <span class="field-label">Substituir por</span>
+                    <input type="text" id="rule-replacement" placeholder="Ex: Supermercado Metro">
+                </label>
+
+                <label class="field form-span-2" id="memo-field" hidden>
+                    <span class="field-label">Memo template</span>
+                    <input type="text" id="rule-memo" placeholder="Ex: Compra \1">
+                    <span class="field-help">Use grupos de captura () no padrão e referencie com \1, \2, etc.</span>
+                </label>
+
+                <label class="cbx form-span-2">
+                    <input type="checkbox" id="rule-regex">
+                    <span>Usar expressão regular (regex)</span>
+                </label>
+            </div>
+        </form>
+        <wa-button slot="footer" appearance="plain" id="cancel-btn" type="button">Cancelar</wa-button>
+        <wa-button slot="footer" variant="brand" id="submit-btn" type="button">Adicionar regra</wa-button>
+    </wa-dialog>
+
+    <div id="toast" class="toast" hidden>
+        <span id="toast-msg"></span>
+    </div>
+
     <script src="bank-utils.js"></script>
     <script src="storage-manager.js"></script>
-    <script src="manage.js"></script>
+    <script type="module" src="manage.bundle.js"></script>
 </body>
 </html>
