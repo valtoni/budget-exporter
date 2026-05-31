@@ -128,6 +128,35 @@ function openSidebar(tabId) {
     return Promise.resolve(false);
 }
 
+async function openManagePage(hash) {
+    // Without a hash, the built-in openOptionsPage focuses the existing manage tab.
+    if (!hash) {
+        return runtimeAPI.openOptionsPage();
+    }
+
+    const targetUrl = runtimeAPI.getURL(`manage.html${hash}`);
+    const baseUrl = runtimeAPI.getURL('manage.html');
+
+    // Reuse an existing manage tab if already open; otherwise create a new one.
+    try {
+        const existing = await tabsAPI.query({ url: `${baseUrl}*` });
+        if (existing && existing.length > 0) {
+            const tab = existing[0];
+            await tabsAPI.update(tab.id, { url: targetUrl, active: true });
+            if (tab.windowId != null && typeof browser !== 'undefined' && browser.windows?.update) {
+                await browser.windows.update(tab.windowId, { focused: true });
+            } else if (tab.windowId != null && chrome.windows?.update) {
+                chrome.windows.update(tab.windowId, { focused: true });
+            }
+            return;
+        }
+    } catch (_) {
+        // tabs.query may fail without "tabs" permission; fall through to create.
+    }
+
+    return tabsAPI.create({ url: targetUrl });
+}
+
 async function exportCsv(csv, filename) {
     const safeFilename = filename || `budget-export-${new Date().toISOString().slice(0, 10)}.csv`;
     return downloadsAPI.download({
@@ -361,7 +390,7 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
                 return;
             }
             case 'OPEN_MANAGE_PAGE': {
-                await runtimeAPI.openOptionsPage();
+                await openManagePage(message.hash || '');
                 sendResponse({ ok: true });
                 return;
             }
@@ -458,5 +487,50 @@ if (commandsAPI?.onCommand) {
 if (runtimeAPI.onInstalled) {
     runtimeAPI.onInstalled.addListener(() => {
         setActiveReview(null).catch(() => undefined);
+    });
+}
+
+// Auto-refresh: when the active tab finishes loading a supported bank URL,
+// pull the freshly captured transactions and broadcast to any open sidebar.
+// Debounced because SPA navigations fire onUpdated multiple times and the
+// transaction-capture script needs a moment to intercept the API calls.
+const AUTO_REFRESH_DELAY_MS = 1500;
+const autoRefreshTimers = new Map();
+
+function scheduleAutoRefresh(tabId) {
+    const existing = autoRefreshTimers.get(tabId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(async () => {
+        autoRefreshTimers.delete(tabId);
+        try {
+            const result = await refreshActiveTabReview();
+            if (result?.review) {
+                await setActiveReview(result.review);
+            }
+        } catch (error) {
+            console.warn('Auto-refresh falhou:', error);
+        }
+    }, AUTO_REFRESH_DELAY_MS);
+    autoRefreshTimers.set(tabId, timer);
+}
+
+if (tabsAPI?.onUpdated) {
+    tabsAPI.onUpdated.addListener((tabId, changeInfo, tab) => {
+        if (changeInfo.status !== 'complete') return;
+        if (!tab?.active) return;
+        if (!detectAccountFromUrl(tab.url || '')) return;
+        scheduleAutoRefresh(tabId);
+    });
+}
+
+if (tabsAPI?.onActivated) {
+    tabsAPI.onActivated.addListener(async ({ tabId }) => {
+        try {
+            const tab = await tabsAPI.get(tabId);
+            if (!detectAccountFromUrl(tab?.url || '')) return;
+            scheduleAutoRefresh(tabId);
+        } catch (_) {
+            // ignored
+        }
     });
 }

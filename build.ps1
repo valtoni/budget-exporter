@@ -90,8 +90,44 @@ if (-not (Test-Path $outputDir)) {
 # ----------------- Exclusion rules -----------------
 $filesToExclude = @(
     "*.md","*.txt",".git*","node_modules",".DS_Store","Thumbs.db","*.log","*.tmp","dist","*.ps1",".idea*", "dist*", "node_modules*",
-    "manifest.chrome.json"
+    "manifest.chrome.json",
+    "src", "src*",
+    "package.json", "package-lock.json",
+    "build.config.mjs",
+    ".gitignore",
+    ".claude", ".claude*",
+    ".vscode", ".vscode*"
 )
+
+# ----------------- Frontend bundle -----------------
+Write-Host ""
+Write-Host "------------------------------------------------" -ForegroundColor Cyan
+Write-Host "  Building sidebar bundle (esbuild)" -ForegroundColor Cyan
+Write-Host "------------------------------------------------" -ForegroundColor Cyan
+
+$nodeModulesDir = Join-Path $sourceDir "node_modules"
+if (-not (Test-Path $nodeModulesDir)) {
+    Write-Host "node_modules not found, running 'npm ci'..." -ForegroundColor Yellow
+    & npm ci
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: 'npm ci' failed." -ForegroundColor Red
+        exit 1
+    }
+}
+
+& npm run build
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: 'npm run build' failed." -ForegroundColor Red
+    exit 1
+}
+
+$bundleJs = Join-Path $sourceDir "sidebar.bundle.js"
+$bundleCss = Join-Path $sourceDir "sidebar.bundle.css"
+if (-not (Test-Path $bundleJs) -or -not (Test-Path $bundleCss)) {
+    Write-Host "ERROR: sidebar bundle files were not produced." -ForegroundColor Red
+    exit 1
+}
+Write-Host "Sidebar bundle ready." -ForegroundColor Green
 
 function New-Package {
     param(

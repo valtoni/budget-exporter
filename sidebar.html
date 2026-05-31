@@ -3,169 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Budget Exporter Review</title>
-    <link rel="stylesheet" href="sidebar.css">
+    <title>Extrato</title>
+    <link rel="stylesheet" href="sidebar.bundle.css">
 </head>
 <body>
     <div class="app-shell">
-        <header class="app-header">
-            <div>
-                <p class="eyebrow">Budget Exporter</p>
-                <h1>Revisao do extrato</h1>
-                <p class="header-copy">Revise o que entrou na pagina, ajuste o que faltar e exporte sem sair do fluxo.</p>
+
+        <header class="ex-header">
+            <h1 class="ex-title">Extrato</h1>
+            <div class="ex-account">
+                <span id="ex-account-name" class="ex-account-name">Sem conta detectada</span>
+                <button type="button" id="ex-cutoff-trigger" class="ex-cutoff-trigger" title="Exportar a partir de">
+                    <span id="ex-cutoff-label">—</span>
+                    <svg class="caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                        <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <input type="text" id="ex-cutoff-input" class="ex-cutoff-input" aria-hidden="true" tabindex="-1">
             </div>
-            <button id="refresh-review" class="button ghost" type="button">Atualizar</button>
         </header>
 
-        <section class="mode-switch group-shell" aria-label="Modos da sidebar">
-            <button id="mode-review" class="mode-button active" type="button">Revisar</button>
-            <button id="mode-manage" class="mode-button" type="button">Gerenciar</button>
-        </section>
+        <nav class="ex-filters" id="ex-filters" role="tablist" aria-label="Filtro de transações">
+            <button class="ex-filter is-active" data-filter="all" type="button" role="tab">
+                <span>Todas</span><span class="ex-count" data-count="all">0</span>
+            </button>
+            <button class="ex-filter" data-filter="matched" type="button" role="tab">
+                <span>Com regra</span><span class="ex-count" data-count="matched">0</span>
+            </button>
+            <button class="ex-filter" data-filter="unmatched" type="button" role="tab">
+                <span>Sem regra</span><span class="ex-count" data-count="unmatched">0</span>
+            </button>
+        </nav>
 
-        <main>
-        <section id="review-panel" class="panel active">
-            <section class="summary-card" id="summary-card">
-                <div class="summary-top">
-                    <div>
-                        <p class="label">Conta detectada</p>
-                        <strong id="summary-account">Nenhuma</strong>
-                    </div>
-                    <span id="cutoff-status" class="pill neutral">Sem corte</span>
-                </div>
-                <div>
-                    <p class="label">Pagina</p>
-                    <span id="summary-page" class="page-copy">Sem dados</span>
-                </div>
-                <div class="summary-grid" id="summary-grid"></div>
-                <div id="summary-error" class="message error hidden"></div>
-            </section>
-
-            <section class="section-block cutoff-block">
-                <div class="section-head cutoff-head">
-                    <div>
-                        <p class="label">Exportacao</p>
-                        <h2>Data de corte</h2>
-                    </div>
-                    <div class="actions-row compact top-actions">
-                        <button id="export-selected" class="button primary" type="button">Exportar selecionados</button>
-                        <div id="ynab-action-group" class="ynab-action-group hidden">
-                            <select id="ynab-destination" class="ynab-destination-select hidden" title="Conta YNAB de destino"></select>
-                            <button id="send-to-ynab" class="button primary" type="button" title="Envia as transacoes selecionadas para o YNAB via API">Enviar ao YNAB</button>
-                        </div>
-                        <button id="open-manage-page" class="button ghost" type="button">Abrir gestao completa</button>
-                    </div>
-                </div>
-                <div class="cutoff-row">
-                    <label class="cutoff-field">
-                        Exportar a partir de
-                        <input id="cutoff-date" type="date">
-                    </label>
-                    <div class="actions-row compact cutoff-actions">
-                        <button id="apply-cutoff" class="button primary" type="button">Aplicar</button>
-                        <button id="clear-cutoff" class="button ghost" type="button">Limpar</button>
-                    </div>
-                </div>
-                <p class="small">Ao aplicar o corte, transacoes anteriores ficam desmarcadas para exportacao, mas continuam visiveis para revisao.</p>
-            </section>
-
-            <section class="section-block filter-block">
-                <div class="section-head">
-                    <div>
-                        <p class="label">Fila de trabalho</p>
-                        <h2>Filtrar transacoes</h2>
-                    </div>
-                </div>
-                <section class="filter-row group-shell" id="filter-row">
-                    <button class="filter-chip active" data-filter="all" type="button">Todos</button>
-                    <button class="filter-chip" data-filter="matched" type="button">Com regra</button>
-                    <button class="filter-chip" data-filter="suggested" type="button">Sugestoes</button>
-                    <button class="filter-chip" data-filter="unmatched" type="button">Sem regra</button>
-                </section>
-            </section>
-
-            <section class="section-block grid-block">
-                <div class="section-head">
-                    <div>
-                        <p class="label">De bank para YNAB</p>
-                        <h2>Transacoes</h2>
-                    </div>
-                    <span id="grid-count" class="pill">0</span>
-                </div>
-                <datalist id="category-options"></datalist>
-                <div class="grid-header">
-                    <div>De (bank)</div>
-                    <div>Para (YNAB)</div>
-                    <div class="grid-action-col">Acao</div>
-                    <div class="grid-check-col" title="Selecionar">&#10003;</div>
-                </div>
-                <div id="review-grid" role="grid"></div>
-            </section>
-        </section>
-
-        <section id="manage-panel" class="panel">
-            <section class="section-block">
-                <div class="section-head">
-                    <h2>Criar regra</h2>
-                    <span id="rule-context" class="pill neutral">Selecione uma transacao ou sugestao</span>
-                </div>
-                <form id="rule-form" class="form-stack">
-                    <label>
-                        Conta
-                        <input id="rule-account-name" type="text" readonly>
-                    </label>
-                    <label>
-                        Padrao
-                        <input id="rule-pattern" type="text" required>
-                    </label>
-                    <label>
-                        Substituir por
-                        <input id="rule-replacement" type="text">
-                    </label>
-                    <label>
-                        Categoria
-                        <select id="rule-category">
-                            <option value="">Opcional</option>
-                        </select>
-                    </label>
-                    <label>
-                        Memo template
-                        <input id="rule-memo" type="text" placeholder="Opcional">
-                    </label>
-                    <label class="checkbox-row">
-                        <input id="rule-regex" type="checkbox">
-                        Usar regex
-                    </label>
-                    <div class="actions-row compact">
-                        <button class="button primary" type="submit">Salvar regra</button>
-                        <button id="clear-rule-form" class="button ghost" type="button">Limpar</button>
-                    </div>
-                </form>
-                <div id="rule-message" class="message hidden"></div>
-            </section>
-
-            <section class="section-block">
-                <div class="section-head">
-                    <h2>Categorias rapidas</h2>
-                    <button id="manage-open-page" class="button ghost" type="button">Abrir pagina completa</button>
-                </div>
-                <form id="category-form" class="inline-form">
-                    <input id="new-category-name" type="text" placeholder="Nova categoria" required>
-                    <button class="button primary" type="submit">Adicionar</button>
-                </form>
-                <div id="categories-list" class="tag-cloud"></div>
-                <div id="category-message" class="message hidden"></div>
-            </section>
-        </section>
+        <main class="ex-main">
+            <datalist id="category-options"></datalist>
+            <extract-grid id="ex-grid"></extract-grid>
+            <div id="ex-error" class="ex-error" hidden></div>
         </main>
 
-        <div id="sync-overlay" class="sync-overlay hidden">
-            <div class="sync-spinner"></div>
-            <p class="sync-label">Sincronizando com YNAB...</p>
-        </div>
+        <footer class="ex-footer">
+            <div class="ex-footer-status">
+                <strong id="ex-selected-count">0</strong>
+                <span>selecionadas</span>
+            </div>
+
+            <button type="button" id="ex-refresh" class="ex-icon-btn" title="Atualizar transações" aria-label="Atualizar transações">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path d="M2.5 8a5.5 5.5 0 0 1 9.4-3.9M13.5 8a5.5 5.5 0 0 1-9.4 3.9" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                    <path d="M9.5 2.5h3v3M6.5 13.5h-3v-3" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+
+            <wa-dropdown id="ex-menu" placement="top-end">
+                <button type="button" slot="trigger" class="ex-icon-btn" title="Mais ações" aria-label="Mais ações">
+                    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                        <circle cx="3" cy="8" r="1.4" fill="currentColor"/>
+                        <circle cx="8" cy="8" r="1.4" fill="currentColor"/>
+                        <circle cx="13" cy="8" r="1.4" fill="currentColor"/>
+                    </svg>
+                </button>
+                <wa-dropdown-item id="menu-export">Exportar CSV</wa-dropdown-item>
+                <wa-dropdown-item id="menu-change-dest" hidden>Trocar destino YNAB</wa-dropdown-item>
+                <wa-divider></wa-divider>
+                <wa-dropdown-item id="menu-manage">Abrir gestão completa</wa-dropdown-item>
+            </wa-dropdown>
+
+            <wa-button id="ex-secondary" size="small" appearance="outlined" hidden>
+                <span id="ex-secondary-label">Configurar YNAB</span>
+            </wa-button>
+
+            <wa-button id="ex-primary" size="small" variant="brand">
+                <span id="ex-primary-label">Exportar CSV</span>
+            </wa-button>
+        </footer>
+    </div>
+
+    <!-- Rule dialog -->
+    <wa-dialog id="rule-dialog" label="Criar regra">
+        <form id="rule-form" class="rule-form">
+            <p class="rule-context" id="rule-context">Baseado em uma transação</p>
+            <label class="field">
+                <span>Conta</span>
+                <input id="rule-account-name" type="text" readonly>
+            </label>
+            <label class="field">
+                <span>Padrão</span>
+                <input id="rule-pattern" type="text" required placeholder="Texto a casar no payee">
+            </label>
+            <label class="field">
+                <span>Substituir por</span>
+                <input id="rule-replacement" type="text" placeholder="Como deve aparecer no YNAB">
+            </label>
+            <label class="field">
+                <span>Categoria</span>
+                <select id="rule-category"><option value="">Opcional</option></select>
+            </label>
+            <label class="field">
+                <span>Memo template</span>
+                <input id="rule-memo" type="text" placeholder="Opcional">
+            </label>
+            <label class="checkbox-row">
+                <input id="rule-regex" type="checkbox">
+                Usar regex
+            </label>
+            <div id="rule-message" class="rule-message" hidden></div>
+        </form>
+        <wa-button slot="footer" variant="brand" id="rule-submit">Salvar regra</wa-button>
+        <wa-button slot="footer" appearance="plain" id="rule-cancel">Cancelar</wa-button>
+    </wa-dialog>
+
+    <!-- YNAB destination dialog -->
+    <wa-dialog id="dest-dialog" label="Destino YNAB">
+        <p class="dialog-helper">Escolha a conta YNAB de destino para esta sessão.</p>
+        <select id="dest-select" title="Conta YNAB de destino" aria-label="Conta YNAB de destino"></select>
+        <wa-button slot="footer" variant="brand" id="dest-confirm">Usar esta conta</wa-button>
+    </wa-dialog>
+
+    <!-- Toast -->
+    <wa-callout id="ex-toast" variant="success" appearance="filled" class="ex-toast" hidden>
+        <span id="ex-toast-msg"></span>
+    </wa-callout>
+
+    <!-- Sync overlay -->
+    <div id="sync-overlay" class="sync-overlay" hidden>
+        <div class="sync-spinner"></div>
+        <p class="sync-label">Sincronizando com YNAB…</p>
     </div>
 
     <script src="bank-utils.js"></script>
     <script src="storage-manager.js"></script>
-    <script src="sidebar.js"></script>
+    <script type="module" src="sidebar.bundle.js"></script>
 </body>
 </html>

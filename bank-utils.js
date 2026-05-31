@@ -353,6 +353,26 @@ function getProcessingConfig(accountId) {
     return ACCOUNT_PROCESSING[accountId] || null;
 }
 
+// Deterministic, content-based transaction id. Stable across captures so the
+// sidebar can merge user edits/selections from prior state by id. Same content
+// (date|payee|amount on the same account) yields the same id; duplicates within
+// the same review get a suffix counter to disambiguate.
+function djb2(str) {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) {
+        h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    }
+    return (h >>> 0).toString(36);
+}
+
+function makeStableTxId(accountId, row, usedIds) {
+    const key = `${accountId}|${row.date || ''}|${row.payee || ''}|${row.amount || ''}`;
+    const baseHash = djb2(key);
+    const count = (usedIds.get(baseHash) || 0) + 1;
+    usedIds.set(baseHash, count);
+    return count === 1 ? `tx-${baseHash}` : `tx-${baseHash}-${count}`;
+}
+
 async function buildReviewState(accountId, rows = []) {
     const account = getAccountByAccountId(accountId);
     const processing = getProcessingConfig(accountId);
@@ -375,6 +395,7 @@ async function buildReviewState(accountId, rows = []) {
             .filter(Boolean)
     );
     const groupedUnmatched = new Map();
+    const usedIds = new Map();
 
     const transactions = rows.map((row, index) => {
         const parsedDate = processing.dateParser(row.date || '', row);
@@ -382,7 +403,7 @@ async function buildReviewState(accountId, rows = []) {
         const ruleResult = applyRulesSync(row.payee || '', rules, categoryIdToName);
         const canonicalPayee = normalizeSuggestionText(row.payee || '');
         const transaction = {
-            id: `tx-${Date.now()}-${index}`,
+            id: makeStableTxId(account.accountId, row, usedIds),
             rawIndex: index,
             accountId: account.id,
             accountName: account.displayName,

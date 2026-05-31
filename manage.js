@@ -11,7 +11,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadCategories();
     await loadRules();
     setupEventListeners();
+    applyHashRoute();
+    window.addEventListener('hashchange', applyHashRoute);
 });
+
+// Deep-link: a sidebar (ou qualquer outra origem) pode abrir manage.html#tab-ynab
+// e cair direto na aba certa.
+const HASH_TAB_MAP = {
+    '#tab-rules': { tabId: 'tab-rules', navId: 'rules-nav' },
+    '#tab-categories': { tabId: 'tab-categories', navId: 'categories-nav' },
+    '#tab-accounts': { tabId: 'tab-accounts', navId: 'accounts-nav' },
+    '#tab-ynab': { tabId: 'tab-ynab', navId: 'ynab-nav' }
+};
+
+function applyHashRoute() {
+    const route = HASH_TAB_MAP[(location.hash || '').toLowerCase()];
+    if (!route) return;
+    showTab(route.tabId, route.navId);
+    if (route.tabId === 'tab-ynab' && typeof loadYnabSection === 'function') {
+        loadYnabSection();
+    }
+}
 
 // Exibe a versão do plugin vinda do manifesto
 function displayVersion() {

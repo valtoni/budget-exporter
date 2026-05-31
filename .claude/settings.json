@@ -15,7 +15,18 @@
       "Bash(node --check storage-manager.js)",
       "Bash(powershell -ExecutionPolicy Bypass -File ./dist/_check_ynab.ps1)",
       "Bash(rm dist/_check_ynab.ps1)",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/work/workspace/valtoni/budget-exporter/manifest.chrome.json','utf8'\\)\\); JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/work/workspace/valtoni/budget-exporter/manifest.json','utf8'\\)\\); console.log\\('both manifests parse OK'\\);\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/work/workspace/valtoni/budget-exporter/manifest.chrome.json','utf8'\\)\\); JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/work/workspace/valtoni/budget-exporter/manifest.json','utf8'\\)\\); console.log\\('both manifests parse OK'\\);\")",
+      "Bash(ls \"C:\\\\Users\\\\valtoni\\\\.claude\\\\skills\\\\frontend-design\")",
+      "Read(//c/Users/valtoni/.claude/skills/frontend-design/**)",
+      "Bash(npm --version)",
+      "Bash(npm view *)",
+      "Bash(npm install *)",
+      "Bash(rm -f sidebar.js sidebar.css)",
+      "Bash(rm -rf vendor/shoelace)",
+      "Bash(npm run *)",
+      "Bash(node -e \"const z=require\\('zlib'\\),fs=require\\('fs'\\);console.log\\('JS  gz:',z.gzipSync\\(fs.readFileSync\\('sidebar.bundle.js'\\)\\).length,'b'\\);console.log\\('CSS gz:',z.gzipSync\\(fs.readFileSync\\('sidebar.bundle.css'\\)\\).length,'b'\\);\")",
+      "PowerShell($env:CI='true'; *)",
+      "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[System.IO.Compression.ZipFile]::OpenRead\\('dist\\\\budget-exporter-v1.3.0-chrome.zip'\\); $z.Entries | Select-Object -ExpandProperty FullName | Sort-Object; $z.Dispose\\(\\))"
     ]
   }
 }
