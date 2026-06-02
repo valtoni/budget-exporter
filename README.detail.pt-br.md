@@ -48,8 +48,9 @@ Nada depende de IA, nuvem ou processamento remoto. Tudo e feito localmente no na
 
 Dois manifestos sao mantidos no repositorio e escolhidos no momento do build:
 
-- `manifest.json` — variante **Firefox** (default). Usa `sidebar_action` (sidebar) + `page_action` (icone na barra de URL ao lado da estrela) + `browser_specific_settings.gecko`. E este que o Firefox carrega quando voce aponta para a pasta em `about:debugging`.
-- `manifest.chrome.json` — override para Chrome/Edge. Usa `side_panel` (Chrome/Edge 114+) e `background.service_worker` puro. Substitui `manifest.json` dentro do `.zip` durante o build.
+- `manifest.json` — variante **Firefox** (default). Usa `sidebar_action` (sidebar) + `page_action` (icone na barra de URL ao lado da estrela) + `browser_specific_settings.gecko`. E este que o Firefox carrega quando voce aponta para a pasta em `about:debugging`. **Fonte canonica unica de `version`** para todo o projeto.
+- `manifest.chrome.json` — override para Chrome/Edge. Usa `side_panel` (Chrome/Edge 114+) e `background.service_worker` puro. Substitui `manifest.json` dentro do `.zip` durante o build. O campo `version` aqui e auto-sincronizado a partir de `manifest.json` via `scripts/sync-version.mjs`.
+- `package.json` — metadados npm. O campo `version` tambem e auto-sincronizado a partir de `manifest.json` — nao edite manualmente.
 
 Os dois compartilham:
 - `manifest_version: 3`
@@ -199,10 +200,20 @@ Alvos:
 ```
 
 O script:
+- chama `npm run build`, que dispara o `prebuild` (`scripts/sync-version.mjs`) propagando a versao canonica
 - le a versao de `manifest.json`
 - alvo `firefox`: empacota o proprio `manifest.json`. Alvos `chrome`/`edge`: substituem por `manifest.chrome.json`
 - usa nome fallback com timestamp se o arquivo anterior estiver travado
 - valida `manifest.json` e icones
+
+### Versao do projeto (fonte canonica unica)
+
+A versao vive em **um unico lugar**: o campo `"version"` em `manifest.json`. Para bumpar, edite la e rode `npm run build` (ou `.\build.ps1`). O hook `prebuild` chama `scripts/sync-version.mjs`, que propaga o valor automaticamente para:
+
+- `manifest.chrome.json`
+- `package.json`
+
+Tambem da pra rodar isolado com `npm run version:sync`. Nunca edite a versao diretamente em `manifest.chrome.json` ou `package.json` — o proximo sync sobrescreve.
 
 Leia tambem: [README-BUILD.md](README-BUILD.md)
 

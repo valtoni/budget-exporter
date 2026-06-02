@@ -19,11 +19,31 @@ Script PowerShell para gerar os pacotes da extensao (Firefox `.xpi`, Chrome/Edge
 
 ## Estrategia de manifest
 
-- `manifest.json` — variante **Firefox** (default). E este que o Firefox carrega via `about:debugging` quando voce aponta para a pasta do projeto. Fonte canonica de `version`.
-- `manifest.chrome.json` — override usado no build para Chrome/Edge. Durante o build desses alvos, ele substitui `manifest.json` dentro do pacote.
+- `manifest.json` — variante **Firefox** (default). E este que o Firefox carrega via `about:debugging` quando voce aponta para a pasta do projeto. **Fonte canonica unica de `version`** para todo o projeto.
+- `manifest.chrome.json` — override usado no build para Chrome/Edge. Durante o build desses alvos, ele substitui `manifest.json` dentro do pacote. O campo `version` aqui e sincronizado automaticamente a partir de `manifest.json`.
+
+## Versionamento (canonico)
+
+A versao do projeto vive em **um unico lugar**: o campo `"version"` em `manifest.json`.
+
+Para mudar a versao:
+
+1. Edite `manifest.json` e altere o campo `version`.
+2. Rode `npm run build` (ou `.\build.ps1`). O hook `prebuild` invoca `scripts/sync-version.mjs` automaticamente.
+
+O script propaga o valor para:
+
+- `manifest.chrome.json` (campo `version`)
+- `package.json` (campo `version`)
+- `manage.html` (elemento com `class="version"`, atualizado pelo build.ps1 no pacote final)
+- Ambiente em tempo de execucao via `chrome.runtime.getManifest().version` (le direto do manifest.json carregado pelo navegador, sempre consistente)
+
+Tambem da pra rodar a sincronizacao isolada (sem build) com `npm run version:sync`. Nunca edite a versao em `manifest.chrome.json` ou `package.json` diretamente — o sync sobrescreve no proximo build.
 
 ## O que o script faz
 
+- chama `npm run build`, que dispara o `prebuild` (`scripts/sync-version.mjs`) propagando a versao canonica de `manifest.json` para os demais arquivos
+- gera o bundle JS/CSS via esbuild
 - le a versao de `manifest.json`
 - cria `dist/` se necessario
 - para cada alvo:
@@ -116,12 +136,12 @@ Remove-Item temp-check -Recurse
 - Chrome: envie o `.zip` no Chrome Web Store (https://chrome.google.com/webstore/devconsole)
 - Edge: envie o `.zip` no Microsoft Edge Add-ons (https://partner.microsoft.com/dashboard/microsoftedge)
 
-## Versionamento
+## Versionamento — fluxo completo
 
-1. Edite `manifest.json` e `manifest.chrome.json` atualizando `version` nos dois (devem coincidir).
-2. Rode `.\build.ps1 -Target all`.
+1. Edite **apenas** `manifest.json` e ajuste o campo `version`.
+2. Rode `.\build.ps1 -Target all` (ou `npm run build` se so precisar do bundle JS/CSS).
 
-Os nomes dos arquivos serao atualizados automaticamente.
+O hook `prebuild` do npm executa `scripts/sync-version.mjs`, que propaga a nova versao para `manifest.chrome.json` e `package.json`. Os nomes dos arquivos do zip/xpi tambem refletem automaticamente porque o build.ps1 le `manifest.json`.
 
 ## Teste local direto da pasta (dev mode no Firefox)
 

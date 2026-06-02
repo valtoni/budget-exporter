@@ -46,8 +46,9 @@ Chrome n'affiche pas d'icone dans la barre d'URL : utilisez l'icone de la barre 
 
 ## Composants principaux
 
-- `manifest.json` : manifeste MV3 (variante Firefox — egalement le default quand on charge le dossier source via `about:debugging`)
-- `manifest.chrome.json` : override Chrome/Edge applique au build (remplace `manifest.json` dans le `.zip` empaquete)
+- `manifest.json` : manifeste MV3 (variante Firefox — egalement le default quand on charge le dossier source via `about:debugging`). **Source canonique unique de `version`** pour tout le projet.
+- `manifest.chrome.json` : override Chrome/Edge applique au build (remplace `manifest.json` dans le `.zip` empaquete). Le champ `version` ici est auto-synchronise depuis `manifest.json` via `scripts/sync-version.mjs` (hook npm `prebuild`).
+- `package.json` : metadonnees npm. Son champ `version` est aussi auto-synchronise depuis `manifest.json` — ne jamais l'editer a la main.
 - `background.js` : coordination du service worker et export
 - `content.js` : extraction de la page et preparation de l'etat de revision
 - `bank-utils.js` : detection de banque, normalisation, suggestions et generation du CSV
@@ -89,6 +90,10 @@ Cibler un navigateur :
 ```
 
 Les artefacts sont ecrits dans `dist/` avec des noms comme `budget-exporter-v1.3.0-<cible>.<ext>` et basculent automatiquement vers un nom horodate si l'archive precedente est verrouillee.
+
+### Bump de la version
+
+La version vit dans **un seul endroit** : le champ `"version"` de `manifest.json`. Pour la changer, editez-y puis lancez `npm run build` (ou `.\build.ps1`) — le hook `prebuild` (`scripts/sync-version.mjs`) propage la nouvelle valeur dans `manifest.chrome.json` et `package.json`. Egalement disponible en standalone : `npm run version:sync`.
 
 Pour les details du build, voir [README-BUILD.md](README-BUILD.md).
 
