@@ -63,7 +63,8 @@
     "downloads",
     "activeTab",
     "scripting",
-    "identity"
+    "identity",
+    "alarms"
   ],
   "host_permissions": [
     "*://*.desjardins.com/*",

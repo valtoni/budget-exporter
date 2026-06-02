@@ -18,6 +18,7 @@ const pageActionAPI = typeof browser !== 'undefined' ? browser.pageAction : unde
 const commandsAPI = typeof browser !== 'undefined' ? browser.commands : chrome.commands;
 const scriptingAPI = typeof browser !== 'undefined' ? browser.scripting : chrome.scripting;
 const identityAPI = typeof browser !== 'undefined' ? browser.identity : chrome.identity;
+const alarmsAPI = typeof browser !== 'undefined' ? browser.alarms : chrome.alarms;
 
 const ACTIVE_REVIEW_KEY = 'active_review';
 const ACCOUNTS = {
@@ -236,7 +237,112 @@ async function ynabConnect(requestedClientId) {
         userEmail,
         lastConnectedAt: Date.now()
     });
+    scheduleYnabRenew(config);
     return sanitizeYnabConfigForResponse(config);
+}
+
+// ---------------- YNAB silent renewal ----------------
+// Implicit Grant tokens are hard-capped at 2h. Without refresh tokens, the only
+// way to keep the session alive is to re-run the OAuth flow before expiration —
+// silently (without UI) — using launchWebAuthFlow({ interactive: false }).
+// While the user's YNAB browser session is alive, the auth endpoint redirects
+// straight back with a new token. If the session is dead, the call fails and
+// the user reconnects manually on next use.
+
+const YNAB_RENEW_ALARM = 'ynab-renew';
+const YNAB_RENEW_BUFFER_MS = 5 * 60 * 1000; // renew 5 minutes before expiry
+
+function scheduleYnabRenew(config) {
+    if (!alarmsAPI?.create) return;
+    if (!config?.token || !config?.tokenExpiresAt) {
+        alarmsAPI.clear?.(YNAB_RENEW_ALARM);
+        return;
+    }
+    const renewAt = config.tokenExpiresAt - YNAB_RENEW_BUFFER_MS;
+    if (renewAt <= Date.now() + 1000) {
+        // Already past renew window — fire immediately, don't bother scheduling.
+        silentRenewYnab().catch(() => undefined);
+        return;
+    }
+    try {
+        alarmsAPI.create(YNAB_RENEW_ALARM, { when: renewAt });
+    } catch (e) {
+        console.warn('Falha ao agendar renew YNAB:', e);
+    }
+}
+
+async function silentRenewYnab() {
+    const config = await getYnabConfigSafe();
+    if (!config?.clientId || !config?.token) {
+        // No session to renew.
+        return false;
+    }
+    if (!identityAPI?.launchWebAuthFlow) return false;
+
+    const redirectUri = getYnabRedirectUri();
+    const authUrl = self.YnabClient.buildAuthorizeUrl(config.clientId, redirectUri);
+
+    let callbackUrl;
+    try {
+        callbackUrl = await new Promise((resolve, reject) => {
+            try {
+                const maybePromise = identityAPI.launchWebAuthFlow(
+                    { url: authUrl, interactive: false },
+                    (result) => {
+                        const err = (typeof chrome !== 'undefined' && chrome.runtime?.lastError) || null;
+                        if (err) return reject(new Error(err.message || String(err)));
+                        if (!result) return reject(new Error('Silent renew sem resposta.'));
+                        resolve(result);
+                    }
+                );
+                if (maybePromise && typeof maybePromise.then === 'function') {
+                    maybePromise.then(resolve, reject);
+                }
+            } catch (e) {
+                reject(e);
+            }
+        });
+    } catch (e) {
+        console.warn('Silent renew YNAB falhou (sessão pode ter expirado):', e?.message || e);
+        return false;
+    }
+
+    const parsed = self.YnabClient.parseImplicitCallback(callbackUrl);
+    if (!parsed?.token) {
+        console.warn('Silent renew YNAB: callback sem token.');
+        return false;
+    }
+
+    const next = await patchYnabConfigSafe({
+        token: parsed.token,
+        tokenExpiresAt: parsed.expiresAt,
+        lastRenewedAt: Date.now()
+    });
+    scheduleYnabRenew(next);
+    return true;
+}
+
+// Defense in depth: before any YNAB API call, if the token is within 5 minutes
+// of expiration, try to renew inline. No-op if token has comfortable lifetime.
+async function ensureFreshYnabToken() {
+    const config = await getYnabConfigSafe();
+    if (!config?.token || !config?.tokenExpiresAt) return;
+    const msLeft = config.tokenExpiresAt - Date.now();
+    if (msLeft > YNAB_RENEW_BUFFER_MS) return; // still plenty of time
+    await silentRenewYnab().catch(() => undefined);
+}
+
+if (alarmsAPI?.onAlarm?.addListener) {
+    alarmsAPI.onAlarm.addListener((alarm) => {
+        if (alarm?.name !== YNAB_RENEW_ALARM) return;
+        silentRenewYnab().catch((e) => console.warn('Renew alarm error:', e));
+    });
+}
+
+if (runtimeAPI?.onStartup?.addListener) {
+    runtimeAPI.onStartup.addListener(() => {
+        getYnabConfigSafe().then((cfg) => scheduleYnabRenew(cfg)).catch(() => undefined);
+    });
 }
 
 async function ynabDisconnect() {
@@ -245,13 +351,14 @@ async function ynabDisconnect() {
     await storageArea.set({
         ynab_config: { clientId: clientId || '', budgetId: budgetId || '', accountMap: accountMap || {} }
     });
+    alarmsAPI?.clear?.(YNAB_RENEW_ALARM);
     return sanitizeYnabConfigForResponse(await getYnabConfigSafe());
 }
 
 function isYnabTokenValid(config) {
     if (!config?.token) return false;
     if (!config.tokenExpiresAt) return true; // unknown expiration, assume valid
-    return Date.now() < config.tokenExpiresAt - 30_000; // 30s safety margin
+    return Date.now() < config.tokenExpiresAt - 120_000; // 2-minute safety margin
 }
 
 function getHardcodedClientId() {
@@ -308,12 +415,14 @@ function sanitizeYnabConfigForResponse(config) {
 }
 
 async function ynabListBudgets() {
+    await ensureFreshYnabToken();
     const config = await getYnabConfigSafe();
     if (!isYnabTokenValid(config)) throw new Error('Token YNAB expirado ou ausente. Reconecte.');
     return self.YnabClient.listBudgets(config.token);
 }
 
 async function ynabListAccounts(budgetId) {
+    await ensureFreshYnabToken();
     const config = await getYnabConfigSafe();
     if (!isYnabTokenValid(config)) throw new Error('Token YNAB expirado ou ausente. Reconecte.');
     return self.YnabClient.listAccounts(config.token, budgetId);
@@ -323,6 +432,7 @@ async function ynabListAccounts(budgetId) {
 // lookup for fast display), then runs the rule-migration that points legacy
 // md5 categoryIds to the new YNAB UUIDs. Idempotent — safe to call repeatedly.
 async function ynabSyncCategories(explicitBudgetId) {
+    await ensureFreshYnabToken();
     const config = await getYnabConfigSafe();
     if (!isYnabTokenValid(config)) throw new Error('Token YNAB expirado ou ausente. Reconecte.');
     const budgetId = explicitBudgetId || config.budgetId;
@@ -375,6 +485,7 @@ function ynabSyncCategoriesSafe(budgetId) {
 }
 
 async function ynabSendTransactions(transactions, ynabAccountIdOverride) {
+    await ensureFreshYnabToken();
     const config = await getYnabConfigSafe();
     if (!isYnabTokenValid(config)) throw new Error('Token YNAB expirado ou ausente. Reconecte.');
     if (!config.budgetId) throw new Error('Orcamento YNAB nao selecionado. Abra "Gerenciar" e escolha um orcamento.');
@@ -560,6 +671,9 @@ if (commandsAPI?.onCommand) {
 if (runtimeAPI.onInstalled) {
     runtimeAPI.onInstalled.addListener(() => {
         setActiveReview(null).catch(() => undefined);
+        // Re-arm the YNAB renew alarm in case the extension was just updated
+        // and alarms were cleared by the browser.
+        getYnabConfigSafe().then((cfg) => scheduleYnabRenew(cfg)).catch(() => undefined);
     });
 }
 

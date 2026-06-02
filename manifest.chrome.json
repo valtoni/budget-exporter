@@ -30,7 +30,8 @@
     "activeTab",
     "scripting",
     "sidePanel",
-    "identity"
+    "identity",
+    "alarms"
   ],
   "host_permissions": [
     "*://*.desjardins.com/*",
