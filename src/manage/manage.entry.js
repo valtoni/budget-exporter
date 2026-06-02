@@ -1,3 +1,6 @@
+// Source Sans 3 Variable (YNAB's declared font, SIL OFL 1.1, bundled locally).
+import '../common/fonts.css';
+
 // Web Awesome theme + selected components
 import '@awesome.me/webawesome/dist/styles/themes/default.css';
 import '@awesome.me/webawesome/dist/styles/webawesome.css';
@@ -19,6 +22,7 @@ import 'tom-select/dist/css/tom-select.css';
 // Lit components
 import './components/manage-rules-table.js';
 import './components/chip-list.js';
+import './components/category-tree.js';
 
 // Local styles
 import './manage.styles.css';

@@ -1,6 +1,7 @@
 /* global StorageManager, BankUtils */
 
 const runtimeAPI = typeof browser !== 'undefined' ? browser.runtime : chrome.runtime;
+const storageAPI = typeof browser !== 'undefined' ? browser.storage : chrome.storage;
 
 const state = {
     rules: [],
@@ -15,7 +16,9 @@ const state = {
     activeTab: 'rules',
     ynabConfig: null,
     ynabBudgets: [],
-    ynabAccounts: []
+    ynabAccounts: [],
+    ynabCategoriesCache: null,
+    categoriesSyncing: false
 };
 
 const dom = {};
@@ -29,6 +32,7 @@ async function init() {
     cacheDom();
     await StorageManager.init();
     displayVersion();
+    await loadYnabConfigEarly();
     await loadAccounts();
     await loadCategories();
     await loadRules();
@@ -36,6 +40,15 @@ async function init() {
     setupRuleTomSelects();
     applyHashRoute();
     window.addEventListener('hashchange', applyHashRoute);
+}
+
+// Fetch YNAB config + categories cache once at startup so the Categorias tab
+// renders the tree correctly even before the user opens the YNAB tab.
+async function loadYnabConfigEarly() {
+    try {
+        const r = await runtimeAPI.sendMessage({ type: 'YNAB_GET_CONFIG' });
+        if (r?.ok) state.ynabConfig = r.config;
+    } catch (_) { /* offline / no service worker */ }
 }
 
 function cacheDom() {
@@ -74,7 +87,8 @@ function cacheDom() {
     dom.submitBtn = document.getElementById('submit-btn');
     dom.cancelBtn = document.getElementById('cancel-btn');
 
-    dom.categoriesList = document.getElementById('categories-list');
+    dom.categoriesTree = document.getElementById('categories-tree');
+    dom.categoriesToolbarFallback = document.getElementById('categories-toolbar-fallback');
     dom.addCategoryForm = document.getElementById('add-category-form');
     dom.categoryName = document.getElementById('category-name');
     dom.categoriesFooter = document.getElementById('categories-footer-info');
@@ -84,7 +98,7 @@ function cacheDom() {
     dom.accountName = document.getElementById('account-name');
     dom.accountsFooter = document.getElementById('accounts-footer-info');
 
-    dom.ynabStatusDot = document.getElementById('ynab-status-dot');
+    dom.ynabStatusIcon = document.getElementById('ynab-status-icon');
     dom.ynabSetupCard = document.getElementById('ynab-setup-card');
     dom.ynabConnectCard = document.getElementById('ynab-connect-card');
     dom.ynabBudgetCard = document.getElementById('ynab-budget-card');
@@ -181,7 +195,37 @@ function bindEvents() {
     dom.rulesTable.addEventListener('rule-remove', (e) => removeRule(e.detail.id));
 
     dom.addCategoryForm.addEventListener('submit', (e) => { e.preventDefault(); addCategory(); });
-    dom.categoriesList.addEventListener('chip-remove', (e) => removeCategory(e.detail.key));
+    dom.categoriesTree.addEventListener('chip-remove', (e) => removeCategory(e.detail.key));
+    dom.categoriesTree.addEventListener('category-sync', () => syncYnabCategories());
+    dom.categoriesTree.addEventListener('category-rename', (e) => renameCategory(e.detail.oldName, e.detail.newName));
+    dom.categoriesTree.addEventListener('group-rename', (e) => renameCategoryGroup(e.detail.oldGroup, e.detail.newGroup));
+    dom.categoriesTree.addEventListener('category-add', (e) => addCategoryByFullName(e.detail.fullName));
+
+    if (storageAPI?.onChanged?.addListener) {
+        storageAPI.onChanged.addListener((changes, area) => {
+            if (area !== 'local') return;
+            if (changes.ynab_categories) {
+                StorageManager.getYnabCategoriesCache().then((cache) => {
+                    state.ynabCategoriesCache = cache;
+                    renderCategoriesView();
+                });
+            }
+            if (changes.ynab_config) {
+                // Re-read so connected flag reflects fresh config.
+                runtimeAPI.sendMessage({ type: 'YNAB_GET_CONFIG' }).then((r) => {
+                    if (r?.ok) {
+                        state.ynabConfig = r.config;
+                        applyYnabStatusDot();
+                        renderCategoriesView();
+                    }
+                });
+            }
+            if (changes.payee_rules) {
+                // Migration may have rewritten rules — refresh table + category counts.
+                loadRules();
+            }
+        });
+    }
 
     dom.addAccountForm.addEventListener('submit', (e) => { e.preventDefault(); addAccount(); });
     dom.accountsList.addEventListener('chip-remove', (e) => removeAccount(parseInt(e.detail.key, 10)));
@@ -225,13 +269,31 @@ async function loadRules() {
     ]);
     state.accounts = accounts;
     state.categories = categories;
-    const idToName = new Map(categories.map((c) => [c.id, c.name]));
+    const localIdToName = new Map(categories.map((c) => [c.id, c.name]));
+    const ynabById = state.ynabCategoriesCache?.byId || {};
     state.rules = rules.map((r) => ({
         ...r,
-        _categoryName: r.categoryId ? (idToName.get(r.categoryId) || '') : (r.category || '')
+        _categoryName: resolveCategoryName(r, ynabById, localIdToName)
     }));
     refreshCounts();
     renderRulesTable();
+}
+
+// Display priority: YNAB cache by UUID > local categories by id > stored name.
+// If rule was marked as orphan but cache resolves it anyway, the cache wins.
+function resolveCategoryName(rule, ynabById, localIdToName) {
+    if (!rule) return '';
+    if (rule.categoryId && ynabById[rule.categoryId]) {
+        return ynabById[rule.categoryId].name;
+    }
+    if (rule._orphanCategory && rule.categoryId && !ynabById[rule.categoryId] && Object.keys(ynabById).length > 0) {
+        // YNAB connected and we have a cache, but this id is gone.
+        return `${rule.category || '(removida no YNAB)'}`;
+    }
+    if (rule.categoryId && localIdToName.has(rule.categoryId)) {
+        return localIdToName.get(rule.categoryId);
+    }
+    return rule.category || '';
 }
 
 function filteredRules() {
@@ -381,19 +443,104 @@ async function toggleRule(id) {
 /* ───────── Categories ───────── */
 async function loadCategories() {
     state.categories = await StorageManager.getCategories();
-    renderCategoriesChips();
+    state.ynabCategoriesCache = await StorageManager.getYnabCategoriesCache();
+    renderCategoriesView();
     refreshCounts();
     rebuildRuleCategorySelect();
 }
 
-function renderCategoriesChips() {
-    dom.categoriesList.items = state.categories.map((c) => ({
-        key: c.name,
-        label: c.name
-    }));
-    dom.categoriesList.emptyText = 'Nenhuma categoria cadastrada.';
-    dom.categoriesList.requestUpdate();
-    dom.categoriesFooter.textContent = `${state.categories.length} categoria${state.categories.length === 1 ? '' : 's'}`;
+function isYnabConnected() {
+    // "Connected" here is just OAuth-done. budget+sync is the tree's job to gate.
+    return !!state.ynabConfig?.connected;
+}
+
+function isYnabSyncReady() {
+    return isYnabConnected() && !!state.ynabConfig?.budgetId;
+}
+
+// The tree owns the whole presentation — it renders YNAB cache (when present)
+// AND local categories (grouped by the "Grupo: Categoria" convention) as a
+// single coherent hierarchy. The flat chip-list legacy view is retired.
+// The toolbar "Adicionar" form stays visible only when there's no YNAB cache
+// (so the user can add locals offline).
+function renderCategoriesView() {
+    if (dom.categoriesTree) {
+        dom.categoriesTree.hidden = false;
+        dom.categoriesTree.connected = isYnabSyncReady();
+        dom.categoriesTree.budgetId = state.ynabConfig?.budgetId || '';
+        dom.categoriesTree.cache = state.ynabCategoriesCache;
+        dom.categoriesTree.localCategories = state.categories;
+        dom.categoriesTree.rulesByCategoryId = buildRulesByCategoryId();
+        dom.categoriesTree.syncing = state.categoriesSyncing;
+        dom.categoriesTree.requestUpdate();
+    }
+
+    // Toolbar form is for offline-add. Hide it when there's an active YNAB
+    // cache (gestão deve ser feita no YNAB nesse caso).
+    const hasYnabCache = !!state.ynabCategoriesCache;
+    if (dom.categoriesToolbarFallback) dom.categoriesToolbarFallback.hidden = hasYnabCache;
+
+    // Footer summary
+    const totalYnab = Object.keys(state.ynabCategoriesCache?.byId || {}).length;
+    if (totalYnab > 0) {
+        const totalLocalOnly = countLocalOnlyCategories();
+        dom.categoriesFooter.textContent = `${totalYnab} no YNAB${totalLocalOnly ? ` · ${totalLocalOnly} locais sem correspondência` : ''}`;
+    } else if (isYnabConnected()) {
+        dom.categoriesFooter.textContent = 'YNAB conectado · sincronize pra carregar as categorias.';
+    } else {
+        dom.categoriesFooter.textContent = `${state.categories.length} categoria${state.categories.length === 1 ? '' : 's'} local${state.categories.length === 1 ? '' : 'is'} · sem YNAB`;
+    }
+}
+
+function buildRulesByCategoryId() {
+    const map = {};
+    for (const rule of state.rules || []) {
+        const key = rule.categoryId || rule.category || '';
+        if (!key) continue;
+        map[key] = (map[key] || 0) + 1;
+    }
+    return map;
+}
+
+function countLocalOnlyCategories() {
+    const cache = state.ynabCategoriesCache;
+    if (!cache) return 0;
+    const byId = cache.byId || {};
+    const nameSet = new Set(Object.values(byId).map((entry) => String(entry.name).toLowerCase()));
+    return (state.categories || []).filter((cat) => {
+        if (byId[cat.id]) return false;
+        return !nameSet.has(String(cat.name).toLowerCase());
+    }).length;
+}
+
+async function syncYnabCategories() {
+    if (state.categoriesSyncing) return;
+    if (!isYnabConnected()) {
+        showToast('Conecte-se ao YNAB antes de sincronizar.', 'warn');
+        return;
+    }
+    state.categoriesSyncing = true;
+    renderCategoriesView();
+    try {
+        const response = await runtimeAPI.sendMessage({ type: 'YNAB_LIST_CATEGORIES' });
+        if (!response?.ok) {
+            showToast(response?.error || 'Falha ao sincronizar categorias.', 'danger');
+            return;
+        }
+        await loadCategories();
+        await loadRules();
+        const { totalCategories, hiddenCount, migration } = response;
+        const parts = [`${totalCategories} categoria${totalCategories === 1 ? '' : 's'}`];
+        if (hiddenCount) parts.push(`${hiddenCount} oculta${hiddenCount === 1 ? '' : 's'}`);
+        if (migration?.migrated) parts.push(`${migration.migrated} regra${migration.migrated === 1 ? '' : 's'} migrada${migration.migrated === 1 ? '' : 's'}`);
+        if (migration?.orphan) parts.push(`${migration.orphan} órfã${migration.orphan === 1 ? '' : 's'}`);
+        showToast(`Sincronizado · ${parts.join(' · ')}`, 'success');
+    } catch (e) {
+        showToast(`Falha ao sincronizar: ${e.message || e}`, 'danger');
+    } finally {
+        state.categoriesSyncing = false;
+        renderCategoriesView();
+    }
 }
 
 async function addCategory() {
@@ -412,7 +559,45 @@ async function addCategory() {
 async function removeCategory(name) {
     if (!confirm(`Remover categoria "${name}"?`)) return;
     await StorageManager.setCategories(state.categories.filter((c) => c.name !== name));
+    await loadRules();
     await loadCategories();
+}
+
+async function renameCategory(oldName, newName) {
+    try {
+        const result = await StorageManager.renameLocalCategory(oldName, newName);
+        await loadRules();
+        await loadCategories();
+        const suffix = result.changed > 0
+            ? ` · ${result.changed} regra${result.changed === 1 ? '' : 's'} atualizada${result.changed === 1 ? '' : 's'}`
+            : '';
+        showToast(`Categoria renomeada${suffix}.`, 'success');
+    } catch (err) {
+        showToast(err.message || 'Falha ao renomear.', 'danger');
+    }
+}
+
+async function renameCategoryGroup(oldGroup, newGroup) {
+    try {
+        const result = await StorageManager.renameLocalCategoryGroup(oldGroup, newGroup);
+        await loadRules();
+        await loadCategories();
+        showToast(`Grupo renomeado · ${result.categoryChanged} categoria${result.categoryChanged === 1 ? '' : 's'} · ${result.rulesChanged} regra${result.rulesChanged === 1 ? '' : 's'}.`, 'success');
+    } catch (err) {
+        showToast(err.message || 'Falha ao renomear grupo.', 'danger');
+    }
+}
+
+async function addCategoryByFullName(fullName) {
+    const name = String(fullName || '').trim();
+    if (!name) return;
+    if (state.categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+        showToast(`Categoria "${name}" já existe.`, 'warn');
+        return;
+    }
+    await StorageManager.setCategories(state.categories.concat([{ name }]));
+    await loadCategories();
+    showToast(`Categoria "${name}" adicionada.`, 'success');
 }
 
 /* ───────── Accounts ───────── */
@@ -498,27 +683,54 @@ function rebuildRuleCategorySelect() {
         ruleCategorySelect = null;
     }
 
+    const ynabReady = isYnabConnected() && state.ynabCategoriesCache;
     dom.ruleCategory.innerHTML = '<option value="">Opcional</option>';
-    state.categories.forEach((c) => {
-        const opt = document.createElement('option');
-        opt.value = c.name;
-        opt.textContent = c.name;
-        dom.ruleCategory.appendChild(opt);
-    });
+
+    if (ynabReady) {
+        // YNAB connected: list categories grouped, value = name (display label).
+        // We store the name in the rule to keep the existing schema; the
+        // categoryId mapping happens at addPayeeRule time via the local index
+        // we keep around.
+        const groups = state.ynabCategoriesCache.categoryGroups || [];
+        for (const g of groups) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = g.name;
+            for (const c of g.categories) {
+                if (c.hidden) continue;
+                const opt = document.createElement('option');
+                opt.value = c.name;
+                opt.textContent = c.name;
+                opt.dataset.uuid = c.id;
+                optgroup.appendChild(opt);
+            }
+            dom.ruleCategory.appendChild(optgroup);
+        }
+    } else {
+        state.categories.forEach((c) => {
+            const opt = document.createElement('option');
+            opt.value = c.name;
+            opt.textContent = c.name;
+            dom.ruleCategory.appendChild(opt);
+        });
+    }
 
     ruleCategorySelect = new TomSelect(dom.ruleCategory, {
-        create: true,
-        createOnBlur: true,
+        // When connected to YNAB, disable inline create — users should add
+        // categories on YNAB and sync. Otherwise allow local-create as before.
+        create: !ynabReady,
+        createOnBlur: !ynabReady,
         persist: false,
         maxItems: 1,
+        optgroupField: 'optgroup',
         sortField: { field: 'text', direction: 'asc' },
         onItemAdd: async (value) => {
+            if (ynabReady) return; // safety guard
             const name = String(value || '').trim();
             if (!name) return;
             if (state.categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) return;
             await StorageManager.setCategories(state.categories.concat([{ name }]));
             state.categories = await StorageManager.getCategories();
-            renderCategoriesChips();
+            renderCategoriesView();
             refreshCounts();
             showToast(`Categoria "${name}" adicionada.`, 'success');
         }
@@ -644,12 +856,21 @@ async function refreshYnabStatus() {
 
 function applyYnabStatusDot() {
     const cfg = state.ynabConfig;
-    const ready = !!cfg?.connected && !!cfg?.budgetId && cfg?.accountMap && Object.keys(cfg.accountMap).length > 0;
-    dom.ynabStatusDot.classList.remove('is-ready', 'is-warn');
+    const connected = !!cfg?.connected;
+    const ready = connected && !!cfg?.budgetId && cfg?.accountMap && Object.keys(cfg.accountMap).length > 0;
+
+    if (dom.ynabStatusIcon) {
+        dom.ynabStatusIcon.classList.toggle('is-connected', connected);
+        dom.ynabStatusIcon.classList.toggle('is-warn', connected && !ready);
+        dom.ynabStatusIcon.title = connected
+            ? (ready ? 'YNAB conectado' : 'YNAB conectado · mapeamento pendente')
+            : 'YNAB desconectado';
+    }
+
     const railYnab = dom.railItems.find((el) => el.dataset.section === 'ynab');
     if (railYnab) {
         railYnab.classList.toggle('is-ready', ready);
-        railYnab.classList.toggle('is-warn', cfg?.connected && !ready);
+        railYnab.classList.toggle('is-warn', connected && !ready);
     }
 }
 

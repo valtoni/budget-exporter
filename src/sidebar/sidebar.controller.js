@@ -10,6 +10,7 @@ const state = {
     review: null,
     filter: 'all',
     categories: [],
+    ynabCategoriesCache: null,
     ruleDraft: null,
     cutoffDate: '',
     ynabConfig: null,
@@ -134,6 +135,12 @@ function bindEvents() {
         storageAPI.onChanged.addListener((changes, area) => {
             if (area !== 'local') return;
             if (changes.ynab_config) refreshYnabConfig();
+            if (changes.ynab_categories) {
+                // Cache was refreshed by background sync; rebuild the combos so
+                // the next rule-dialog opens with the up-to-date list.
+                loadCategories();
+                renderGrid();
+            }
         });
     }
 }
@@ -542,31 +549,92 @@ function onSelectAll(event) {
     persistReview();
 }
 
-/* ───────── Categories ───────── */
+/* ───────── Categories ─────────
+ * Source of truth depends on YNAB connection:
+ *   - Connected + cache present  → YNAB category list (read-only, grouped).
+ *   - Otherwise                  → local categories (with create-on-blur).
+ */
 async function loadCategories() {
     state.categories = await StorageManager.getCategories();
+    try {
+        state.ynabCategoriesCache = await StorageManager.getYnabCategoriesCache();
+    } catch (_) {
+        state.ynabCategoriesCache = null;
+    }
     renderCategoryDatalist();
     rebuildCategorySelectOptions();
-    if (categoryTomSelect) syncTomSelectOptions();
+    if (categoryTomSelect) {
+        // Re-create when source switches, otherwise just refresh options.
+        const wantsYnab = isYnabCategorySourceReady();
+        if (!!categoryTomSelect._fromYnab !== wantsYnab) {
+            categoryTomSelect.destroy();
+            categoryTomSelect = null;
+        } else {
+            syncTomSelectOptions();
+        }
+    }
+}
+
+function isYnabCategorySourceReady() {
+    return !!(state.ynabCategoriesCache && state.ynabCategoriesCache.byId
+        && Object.keys(state.ynabCategoriesCache.byId).length > 0);
+}
+
+function ynabCategoryList() {
+    const cache = state.ynabCategoriesCache;
+    if (!cache) return [];
+    const out = [];
+    for (const group of (cache.categoryGroups || [])) {
+        if (group.hidden) continue;
+        for (const cat of group.categories) {
+            if (cat.hidden) continue;
+            out.push({ name: cat.name, group: group.name });
+        }
+    }
+    return out;
 }
 
 function renderCategoryDatalist() {
     dom.categoryOptions.innerHTML = '';
-    state.categories.forEach((cat) => {
+    const list = isYnabCategorySourceReady()
+        ? ynabCategoryList().map((c) => c.name)
+        : state.categories.map((c) => c.name);
+    // Dedupe so YNAB-name and any leftover local same-name don't show twice.
+    const seen = new Set();
+    for (const name of list) {
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
         const opt = document.createElement('option');
-        opt.value = cat.name;
+        opt.value = name;
         dom.categoryOptions.appendChild(opt);
-    });
+    }
 }
 
 function rebuildCategorySelectOptions() {
     dom.ruleCategory.innerHTML = '<option value="">Opcional</option>';
-    state.categories.forEach((cat) => {
-        const opt = document.createElement('option');
-        opt.value = cat.name;
-        opt.textContent = cat.name;
-        dom.ruleCategory.appendChild(opt);
-    });
+    if (isYnabCategorySourceReady()) {
+        const cache = state.ynabCategoriesCache;
+        for (const group of (cache.categoryGroups || [])) {
+            if (group.hidden) continue;
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = group.name;
+            for (const cat of group.categories) {
+                if (cat.hidden) continue;
+                const opt = document.createElement('option');
+                opt.value = cat.name;
+                opt.textContent = cat.name;
+                optgroup.appendChild(opt);
+            }
+            dom.ruleCategory.appendChild(optgroup);
+        }
+    } else {
+        state.categories.forEach((cat) => {
+            const opt = document.createElement('option');
+            opt.value = cat.name;
+            opt.textContent = cat.name;
+            dom.ruleCategory.appendChild(opt);
+        });
+    }
 }
 
 function ensureCategoryTomSelect() {
@@ -574,13 +642,16 @@ function ensureCategoryTomSelect() {
     const { TomSelect } = window.__sidebarDeps || {};
     if (!TomSelect) return null;
 
+    const ynabReady = isYnabCategorySourceReady();
     categoryTomSelect = new TomSelect(dom.ruleCategory, {
-        create: true,
-        createOnBlur: true,
+        create: !ynabReady,           // só pode criar nova quando NÃO está espelhando YNAB
+        createOnBlur: !ynabReady,
         persist: false,
         maxItems: 1,
+        optgroupField: 'optgroup',
         sortField: { field: 'text', direction: 'asc' },
         onItemAdd: async (value) => {
+            if (ynabReady) return;
             const name = String(value || '').trim();
             if (!name) return;
             if (state.categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) return;
@@ -596,15 +667,26 @@ function ensureCategoryTomSelect() {
             }
         }
     });
+    categoryTomSelect._fromYnab = ynabReady;
     return categoryTomSelect;
 }
 
 function syncTomSelectOptions() {
     if (!categoryTomSelect) return;
     categoryTomSelect.clearOptions();
-    state.categories.forEach((cat) => {
-        categoryTomSelect.addOption({ value: cat.name, text: cat.name });
-    });
+    if (isYnabCategorySourceReady()) {
+        for (const group of (state.ynabCategoriesCache.categoryGroups || [])) {
+            if (group.hidden) continue;
+            for (const cat of group.categories) {
+                if (cat.hidden) continue;
+                categoryTomSelect.addOption({ value: cat.name, text: cat.name });
+            }
+        }
+    } else {
+        state.categories.forEach((cat) => {
+            categoryTomSelect.addOption({ value: cat.name, text: cat.name });
+        });
+    }
     categoryTomSelect.refreshOptions(false);
 }
 

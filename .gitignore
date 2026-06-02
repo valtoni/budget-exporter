@@ -2,6 +2,10 @@ dist/
 node_modules/
 sidebar.bundle.js
 sidebar.bundle.css
+manage.bundle.js
+manage.bundle.css
+*.woff2
+*.woff
 *.log
 .DS_Store
 Thumbs.db

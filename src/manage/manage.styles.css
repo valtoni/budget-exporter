@@ -4,7 +4,8 @@
 
 :root {
     color-scheme: light;
-    --font-sans: 'Segoe UI Variable Display', 'Segoe UI', -apple-system,
+    --font-sans: 'Source Sans 3 Variable', 'Source Sans 3', 'Source Sans Pro',
+                 'Segoe UI Variable Display', 'Segoe UI', -apple-system,
                  BlinkMacSystemFont, system-ui, sans-serif;
     --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono',
                  'Cascadia Mono', 'Consolas', monospace;
@@ -20,8 +21,17 @@
     --muted: #8a8a7d;
     --muted-2: #b3b2a4;
 
-    --accent: #1f5d40;
-    --accent-soft: #e6f0ea;
+    /* Primary brand — YNAB Blurple. Used for UI actions, active states,
+       focus rings, checkboxes, the + button etc. */
+    --accent: #5B58D6;
+    --accent-soft: #ECECFB;
+    --accent-deep: #4845B8;
+
+    /* Positive semantic — green. Used ONLY for money inflow, success
+       indicators, "connected" plug, "rule matched" status stripes. */
+    --positive: #1f5d40;
+    --positive-soft: #e6f0ea;
+
     --warn: #b45309;
     --warn-soft: #fdf2db;
     --danger: #b91c1c;
@@ -32,7 +42,17 @@
     --r-md: 6px;
     --r-lg: 10px;
 
-    --rail-width: 240px;
+    --rail-width: 260px;
+
+    /* YNAB "Blurple" rail palette (dark variant) */
+    --rail-bg: #1F1B47;
+    --rail-bg-hover: #2A2658;
+    --rail-bg-active: #3F3C7A;
+    --rail-text: #ECECF5;
+    --rail-text-muted: #9F9DC0;
+    --rail-text-dim: rgba(255, 255, 255, 0.32);
+    --rail-text-on-active: #FFFFFF;
+    --rail-divider: rgba(255, 255, 255, 0.08);
 
     --wa-color-brand-fill-loud: var(--accent);
     --wa-color-brand-on-loud: #ffffff;
@@ -58,7 +78,7 @@ body {
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font-sans);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.4;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -80,40 +100,51 @@ input, select, textarea { font: inherit; color: inherit; }
     .rail { grid-template-rows: auto; flex-direction: row; }
 }
 
-/* ───────── Rail ───────── */
+/* ───────── Rail (YNAB Blurple) ───────── */
 .rail {
     display: grid;
     grid-template-rows: auto 1fr auto;
     gap: 6px;
     padding: 16px 0;
-    border-right: 1px solid var(--line);
-    background: var(--bg-elevated);
+    border-right: none;
+    background: var(--rail-bg);
+    color: var(--rail-text);
     min-height: 0;
     overflow-y: auto;
     scrollbar-width: thin;
+    scrollbar-color: var(--rail-bg-hover) transparent;
 }
+/* Webkit fallback for Chrome 114-120 (scrollbar-color landed in 121) */
+.rail::-webkit-scrollbar { width: 8px; }
+.rail::-webkit-scrollbar-track { background: transparent; }
+.rail::-webkit-scrollbar-thumb {
+    background: var(--rail-bg-hover);
+    border-radius: 4px;
+}
+.rail::-webkit-scrollbar-thumb:hover { background: var(--rail-bg-active); }
 
 .rail-brand {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 0 16px 12px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid var(--line);
-    color: var(--ink);
+    gap: 10px;
+    padding: 4px 18px 14px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--rail-divider);
+    color: var(--rail-text);
 }
 .rail-brand img { width: 22px; height: 22px; }
 .rail-brand-text {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
     letter-spacing: -0.01em;
+    color: var(--rail-text);
 }
 
 .rail-nav {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 0 8px;
+    gap: 1px;
+    padding: 0 10px;
 }
 
 .rail-item {
@@ -121,73 +152,78 @@ input, select, textarea { font: inherit; color: inherit; }
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 8px 10px;
+    padding: 9px 12px;
     border: none;
     background: transparent;
-    color: var(--ink-2);
+    color: var(--rail-text-muted);
     border-radius: var(--r-md);
     font-size: 13px;
+    font-weight: 500;
     text-align: left;
     text-decoration: none;
     transition: background 120ms, color 120ms;
 }
-.rail-item:hover { background: var(--surface-2); color: var(--ink); }
+.rail-item:hover { background: var(--rail-bg-hover); color: var(--rail-text); }
 .rail-item.is-active {
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: var(--rail-bg-active);
+    color: var(--rail-text-on-active);
     font-weight: 600;
 }
 
 .rail-count {
     font-size: 11px;
     font-weight: 500;
-    color: var(--muted-2);
+    color: var(--rail-text-dim);
     padding: 1px 6px;
-    background: var(--surface-2);
+    background: rgba(255, 255, 255, 0.06);
     border-radius: 999px;
     min-width: 18px;
     text-align: center;
     font-variant-numeric: tabular-nums;
 }
+.rail-item:hover .rail-count {
+    color: var(--rail-text);
+    background: rgba(255, 255, 255, 0.10);
+}
 .rail-item.is-active .rail-count {
-    color: var(--accent);
-    background: rgba(31, 93, 64, 0.12);
+    color: var(--rail-text-on-active);
+    background: rgba(255, 255, 255, 0.18);
 }
 
 .rail-section-title {
-    padding: 12px 16px 4px;
+    padding: 14px 18px 6px;
     font-size: 10px;
     font-weight: 600;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--rail-text-dim);
 }
 
 .rail-actions {
-    padding: 0 8px;
+    padding: 0 10px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 1px;
 }
 
 .rail-footer {
-    padding: 12px 16px 0;
-    border-top: 1px solid var(--line);
+    padding: 14px 18px 0;
+    border-top: 1px solid var(--rail-divider);
     display: flex;
     flex-direction: column;
     gap: 6px;
-    color: var(--muted);
+    color: var(--rail-text-dim);
     font-size: 11px;
 }
 .rail-footer a {
-    color: var(--muted);
+    color: var(--rail-text-dim);
     text-decoration: none;
     transition: color 120ms;
 }
-.rail-footer a:hover { color: var(--accent); }
+.rail-footer a:hover { color: var(--rail-text); }
 .rail-footer-row {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
 }
 .rail-version {
@@ -195,15 +231,30 @@ input, select, textarea { font: inherit; color: inherit; }
     font-variant-numeric: tabular-nums;
 }
 
-.ynab-status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--muted-2);
+/* YNAB plug status icon: green (plugado) when connected, red (desplugado)
+   with a diagonal slash when not. Sits in the rail's YNAB item — uses
+   brighter shades so it pops against the dark Blurple rail background.
+   The connected color stays GREEN regardless of the brand color choice —
+   green = positive semantic, not the UI accent (which is now blurple). */
+.ynab-status-icon {
+    display: inline-flex;
+    align-items: center;
     flex-shrink: 0;
 }
-.rail-item[data-section="ynab"].is-ready .ynab-status-dot { background: var(--accent); }
-.rail-item[data-section="ynab"].is-warn .ynab-status-dot { background: var(--warn); }
+.ynab-status-icon .ynab-icon-on,
+.ynab-status-icon .ynab-icon-off {
+    display: none;
+}
+.ynab-status-icon .ynab-icon-off {
+    display: inline-flex;
+    color: #FF7B7B;
+}
+.ynab-status-icon.is-connected .ynab-icon-on {
+    display: inline-flex;
+    color: #5CE5A6;
+}
+.ynab-status-icon.is-connected .ynab-icon-off { display: none; }
+.ynab-status-icon.is-connected.is-warn .ynab-icon-on { color: #FFCB66; }
 
 /* ───────── Main — host for tab-panes ───────── */
 .main {
@@ -220,8 +271,10 @@ input, select, textarea { font: inherit; color: inherit; }
 .tab-pane.is-active {
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr) auto;
-    height: 100%;
+    flex: 1 1 auto;
     min-height: 0;
+    height: 100%;
+    overflow: hidden;
 }
 
 .main-header {
@@ -233,14 +286,14 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .main-title {
     margin: 0;
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 600;
     letter-spacing: -0.02em;
     color: var(--ink);
 }
 .main-subtitle {
     margin: 4px 0 0;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--muted);
 }
 
@@ -261,7 +314,7 @@ input, select, textarea { font: inherit; color: inherit; }
     background: var(--bg-elevated);
     border: 1px solid var(--line);
     border-radius: var(--r-md);
-    font-size: 12px;
+    font-size: 13px;
     color: var(--ink);
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='7' cy='7' r='4.5' fill='none' stroke='%238a8a7d' stroke-width='1.5'/><line x1='10.5' y1='10.5' x2='13.5' y2='13.5' stroke='%238a8a7d' stroke-width='1.5' stroke-linecap='round'/></svg>");
     background-repeat: no-repeat;
@@ -377,11 +430,11 @@ input, select, textarea { font: inherit; color: inherit; }
 .field select,
 .field textarea {
     width: 100%;
-    padding: 7px 10px;
+    padding: 8px 10px;
     background: var(--bg-elevated);
     border: 1px solid var(--line);
     border-radius: var(--r-md);
-    font-size: 13px;
+    font-size: 14px;
     color: var(--ink);
     transition: border-color 120ms;
 }
@@ -642,7 +695,7 @@ manage-rules-table {
     box-shadow: 0 0 0 1px var(--accent-soft);
 }
 .ynab-step.is-done {
-    background: var(--accent-soft);
+    background: var(--positive-soft);
     border-color: rgba(31, 93, 64, 0.18);
 }
 .ynab-step-head {
@@ -670,7 +723,7 @@ manage-rules-table {
     color: #fff;
 }
 .ynab-step.is-done .ynab-step-num {
-    background: var(--accent);
+    background: var(--positive);
     color: #fff;
 }
 .ynab-step-title {
@@ -722,7 +775,7 @@ manage-rules-table {
     padding: 10px 14px;
     background: var(--bg-elevated);
     border: 1px solid var(--line);
-    border-left: 3px solid var(--accent);
+    border-left: 3px solid var(--positive);
     border-radius: var(--r-md);
     box-shadow: 0 8px 20px rgba(20, 21, 15, 0.10);
     font-size: 12.5px;
@@ -806,3 +859,354 @@ wa-dialog::part(panel) { max-width: 92vw; }
     align-items: center;
 }
 .inline-input-row input { flex: 1; }
+
+/* ───────── Category tree (YNAB-synced) ───────── */
+category-tree {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    flex: 1 1 auto;
+    overflow: hidden;
+}
+.ct-host {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+    height: 100%;
+    gap: 12px;
+    overflow: hidden;
+}
+
+.ct-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    font-size: 13px;
+}
+.ct-status-text { color: var(--ink-2); }
+.ct-status-text strong { color: var(--ink); font-weight: 600; margin-right: 4px; }
+.ct-status-meta { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.ct-status-offline { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+.ct-status-onboard { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.ct-status-onboard wa-button { margin-left: auto; }
+
+/* YNAB-style continuous list: one outer card, internal groups blend into
+   each other, single-pixel solid separators only. No dashed/dotted lines,
+   no per-group cards. */
+.ct-groups {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    min-height: 0;
+    flex: 1;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    display: flex;
+    flex-direction: column;
+}
+
+.ct-group {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+
+/* Subtle separator between adjacent groups, but not on the very top. */
+.ct-group + .ct-group {
+    border-top: 1px solid var(--line);
+}
+
+/* Head row is the clickable header (role="button"). Holds arrow, label
+   (with embedded + button) and count. */
+.ct-group-head-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: var(--surface-2);
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 100ms;
+    -webkit-user-select: none;
+    user-select: none;
+}
+.ct-group-head-row:hover { background: var(--line); }
+.ct-group-head-row:focus-visible {
+    outline: 2px solid var(--accent-soft);
+    outline-offset: -2px;
+}
+/* Wrap holds the + button and acts as anchor for the absolute-positioned
+   popover so it stays attached to the button. Sits inline right after the
+   label text/tag, so the + reads as part of the title group. */
+.ct-group-add-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    flex-shrink: 0;
+}
+
+/* YNAB-style "+" button in the project's green. Only visible on row hover. */
+.ct-group-add-btn {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    margin: 0;
+    background: var(--accent);
+    color: #ffffff;
+    border: none;
+    border-radius: 50%;
+    -webkit-appearance: none;
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 100ms ease, transform 100ms ease, background 100ms ease;
+}
+.ct-group-head-row:hover .ct-group-add-btn { opacity: 1; }
+.ct-group-add-btn:hover {
+    background: var(--accent-deep, var(--accent));
+    transform: scale(1.1);
+}
+
+/* Popover anchored to the + button. Now that the + sits right after the
+   label (mid-row, not far-right), the popover extends to the RIGHT with the
+   arrow pointing back at the + button on the left. */
+.ct-popover {
+    position: absolute;
+    top: 26px;
+    left: -10px;
+    z-index: 10;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    box-shadow: 0 10px 24px rgba(20, 21, 15, 0.14);
+    padding: 10px 12px;
+    min-width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: auto;
+}
+/* When popover is rendered, keep the + visible above */
+.ct-group-add-wrap:has(.ct-popover) .ct-group-add-btn { opacity: 1; }
+
+/* Arrow positioned above the + button (which is at roughly 10-19px from the
+   popover's left edge). */
+.ct-popover-arrow {
+    position: absolute;
+    top: -6px;
+    left: 14px;
+    width: 10px;
+    height: 10px;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+    transform: rotate(45deg);
+}
+.ct-popover-input {
+    width: 100%;
+    padding: 7px 10px;
+    background: var(--bg);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-sm);
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    outline: none;
+}
+.ct-popover-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.ct-popover-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+.ct-popover-btn {
+    padding: 5px 12px;
+    border-radius: var(--r-sm);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 100ms, color 100ms, border-color 100ms;
+}
+.ct-popover-btn-cancel {
+    background: transparent;
+    color: var(--ink-2);
+    border-color: var(--line);
+}
+.ct-popover-btn-cancel:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+}
+.ct-popover-btn-ok {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+}
+.ct-popover-btn-ok:hover {
+    background: var(--accent-deep, var(--accent));
+}
+.ct-group.is-muted .ct-group-head { color: var(--muted); }
+.ct-group-arrow {
+    color: var(--muted-2);
+    font-size: 11px;
+    width: 12px;
+    text-align: center;
+}
+/* Center-aligned (not baseline). Baseline forced the container to accommodate
+   the full ascent+descent of the emoji 🏠 in the title, inflating the row by
+   ~8px. Center alignment makes the container height = max(child heights),
+   which the emoji doesn't contribute to anymore beyond the font-size. */
+.ct-group-label {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    line-height: 1;
+}
+.ct-group-label > span:first-child,
+.ct-group-label-text {
+    line-height: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ct-group-label-tag {
+    display: inline-block;
+    line-height: 1;
+    padding: 2px 6px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-radius: 3px;
+    flex-shrink: 0;
+    vertical-align: baseline;
+}
+.ct-group-count {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 20px;
+    text-align: right;
+}
+
+.ct-group-body {
+    padding: 0;
+}
+.ct-category {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px 8px 36px;
+    font-size: 14px;
+    color: var(--ink);
+    border-top: 1px solid var(--line);
+    background: var(--bg-elevated);
+    transition: background 100ms;
+}
+.ct-category:hover { background: var(--surface-2); }
+.ct-group.is-muted .ct-category { color: var(--muted); }
+.ct-category-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-category-badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+.ct-category-count {
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+.ct-category.is-orphan { color: var(--danger); }
+
+.ct-category-remove {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--muted-2);
+    font-size: 16px;
+    line-height: 1;
+    border-radius: var(--r-sm);
+    transition: background 100ms, color 100ms;
+    margin-left: 4px;
+    opacity: 0;
+}
+.ct-category:hover .ct-category-remove { opacity: 1; }
+.ct-category-remove:hover { background: var(--danger-soft); color: var(--danger); }
+
+.ct-empty {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* Inline edit input (used for category rename, group rename, and add) */
+.ct-edit-input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    margin: -3px 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-sm);
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.ct-edit-input-leaf { font-weight: 400; }
+.ct-group-label .ct-edit-input { font-weight: 600; }
+
+.ct-group-label-text {
+    cursor: text;
+    border-bottom: 1px dashed transparent;
+    padding-bottom: 1px;
+}
+.ct-group-label-text:hover {
+    border-bottom-color: var(--muted-2);
+}
+.ct-category-name[onclick],
+.ct-category-name:hover {
+    cursor: default;
+}
+.ct-group.is-local .ct-category-name {
+    cursor: text;
+}
+.ct-group.is-local .ct-category-name:hover {
+    text-decoration: underline dashed var(--muted-2);
+    text-underline-offset: 3px;
+}

@@ -48,6 +48,7 @@
     "scripts": [
       "ynab-config.js",
       "ynab-client.js",
+      "storage-manager.js",
       "background.js"
     ],
     "preferred_environment": [

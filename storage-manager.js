@@ -729,8 +729,204 @@ const BudgetStorage = {
         const next = { ...current, ...partial };
         await this.setYnabConfig(next);
         return next;
+    },
+
+    // ---------------- YNAB categories cache + migration ----------------
+    // Stored under key `ynab_categories`. Shape:
+    // { budgetId, syncedAt, categoryGroups: [{ id, name, hidden, categories: [...] }],
+    //   byId: { uuid: { name, groupName, hidden } } }
+    async getYnabCategoriesCache() {
+        const key = 'ynab_categories';
+        if (isFirefox) {
+            const items = await storageAPI.local.get(key);
+            return items[key] || null;
+        }
+        return await new Promise((resolve) => {
+            storageAPI.local.get(key, (items) => resolve(items[key] || null));
+        });
+    },
+
+    async setYnabCategoriesCache(payload) {
+        const key = 'ynab_categories';
+        const safe = payload || null;
+        if (isFirefox) {
+            await storageAPI.local.set({ [key]: safe });
+        } else {
+            await new Promise((resolve) => {
+                storageAPI.local.set({ [key]: safe }, () => resolve());
+            });
+        }
+    },
+
+    /**
+     * Rename a single local category atomically.
+     * - Updates the `categories` array (new md5 id derived from new name).
+     * - Updates ALL `payee_rules` whose categoryId matches the old id OR whose
+     *   `category` (legacy name) equals the old name (case-insensitive).
+     * - Throws if a different category with the new name already exists.
+     */
+    async renameLocalCategory(oldFullName, newFullName) {
+        const oldName = String(oldFullName || '').trim();
+        const newName = String(newFullName || '').trim();
+        if (!oldName || !newName) throw new Error('Nome inválido.');
+        if (oldName === newName) return { changed: 0 };
+
+        const categories = await this.getCategories();
+        const idx = categories.findIndex((c) => c.name.toLowerCase() === oldName.toLowerCase());
+        if (idx === -1) throw new Error(`Categoria "${oldName}" não encontrada.`);
+
+        const collision = categories.some((c, i) => i !== idx && c.name.toLowerCase() === newName.toLowerCase());
+        if (collision) throw new Error(`Já existe uma categoria "${newName}".`);
+
+        const oldCat = categories[idx];
+        const newId = md5(newName.toLowerCase());
+        categories[idx] = { id: newId, name: newName };
+
+        const rules = await this.getPayeeRules();
+        let changed = 0;
+        for (let i = 0; i < rules.length; i++) {
+            const r = rules[i];
+            if (!r) continue;
+            const matchById = r.categoryId && r.categoryId === oldCat.id;
+            const matchByName = typeof r.category === 'string'
+                && r.category.toLowerCase() === oldName.toLowerCase();
+            if (matchById || matchByName) {
+                rules[i] = { ...r, categoryId: newId, category: newName };
+                changed += 1;
+            }
+        }
+
+        await this.setCategories(categories);
+        await this.setPayeeRules(rules);
+        return { changed };
+    },
+
+    /**
+     * Rename a category "group" — i.e., all local categories whose name starts
+     * with "<oldGroup>:" get rewritten to "<newGroup>: <leaf>". Rules
+     * referencing those names are cascaded.
+     */
+    async renameLocalCategoryGroup(oldGroup, newGroup) {
+        const oldG = String(oldGroup || '').trim();
+        const newG = String(newGroup || '').trim();
+        if (!oldG || !newG) throw new Error('Nome de grupo inválido.');
+        if (oldG === newG) return { categoryChanged: 0, rulesChanged: 0 };
+
+        const categories = await this.getCategories();
+        const rules = await this.getPayeeRules();
+        const renameMap = new Map(); // oldFullNameLower → newFullName
+
+        const updatedCategories = categories.map((cat) => {
+            const name = cat.name || '';
+            const colonIdx = name.indexOf(':');
+            if (colonIdx === -1) return cat;
+            const groupPart = name.slice(0, colonIdx).trim();
+            if (groupPart.toLowerCase() !== oldG.toLowerCase()) return cat;
+            const leaf = name.slice(colonIdx + 1).trim();
+            const newName = leaf ? `${newG}: ${leaf}` : newG;
+            renameMap.set(name.toLowerCase(), newName);
+            return { id: md5(newName.toLowerCase()), name: newName };
+        });
+
+        // Collision check: ensure no two final names collide.
+        const seen = new Set();
+        for (const c of updatedCategories) {
+            const k = c.name.toLowerCase();
+            if (seen.has(k)) throw new Error(`Conflito: já existe "${c.name}" no novo grupo.`);
+            seen.add(k);
+        }
+
+        let rulesChanged = 0;
+        const updatedRules = rules.map((r) => {
+            if (!r || typeof r.category !== 'string') return r;
+            const lower = r.category.toLowerCase();
+            if (renameMap.has(lower)) {
+                const newName = renameMap.get(lower);
+                rulesChanged += 1;
+                return { ...r, categoryId: md5(newName.toLowerCase()), category: newName };
+            }
+            return r;
+        });
+
+        await this.setCategories(updatedCategories);
+        await this.setPayeeRules(updatedRules);
+        return { categoryChanged: renameMap.size, rulesChanged };
+    },
+
+    /**
+     * Migra payee rules pra apontarem aos UUIDs do YNAB quando o nome casa.
+     *
+     * Garantias invioláveis (vide plano):
+     *  1. NUNCA apaga categorias locais (array `categories` fica intacto).
+     *  2. NUNCA zera categoria de uma regra — se não houver match YNAB, mantém
+     *     `categoryId` e `category` antigos e só marca `_orphanCategory: true`.
+     *  3. Salva snapshot prévio em `rules_backup_premigration` antes do write.
+     *
+     * @param {Object} ynabCache - payload retornado por setYnabCategoriesCache
+     * @returns {Promise<{migrated:number, orphan:number, total:number, skipped:number}>}
+     */
+    async migrateRulesToYnabCategories(ynabCache) {
+        const byId = ynabCache?.byId || {};
+        const nameToUuid = new Map();
+        for (const [uuid, entry] of Object.entries(byId)) {
+            const key = normalizeCategoryName(entry?.name);
+            if (key) nameToUuid.set(key, uuid);
+        }
+
+        const rules = await this.getPayeeRules();
+
+        // Snapshot pré-migração — non-fatal se write falhar
+        try {
+            const backupKey = 'rules_backup_premigration';
+            const backup = { rules: JSON.parse(JSON.stringify(rules)), at: Date.now() };
+            if (isFirefox) {
+                await storageAPI.local.set({ [backupKey]: backup });
+            } else {
+                await new Promise((resolve) => storageAPI.local.set({ [backupKey]: backup }, () => resolve()));
+            }
+        } catch (e) {
+            console.warn('Backup pré-migração falhou (continuando):', e);
+        }
+
+        let migrated = 0;
+        let orphan = 0;
+        let skipped = 0;
+
+        const next = rules.map((rule) => {
+            if (!rule) return rule;
+            if (isUuid(rule.categoryId)) { skipped += 1; return rule; }
+            const name = (typeof rule.category === 'string') ? rule.category.trim() : '';
+            if (!name) { skipped += 1; return rule; }
+            const uuid = nameToUuid.get(normalizeCategoryName(name));
+            if (uuid) {
+                migrated += 1;
+                const canonical = byId[uuid]?.name || name;
+                const cleaned = { ...rule, categoryId: uuid, category: canonical };
+                delete cleaned._orphanCategory;
+                return cleaned;
+            }
+            orphan += 1;
+            return { ...rule, _orphanCategory: true };
+        });
+
+        await this.setPayeeRules(next);
+        await this.patchYnabConfig({ categoriesMigrationDoneAt: Date.now() });
+        return { migrated, orphan, total: rules.length, skipped };
     }
 };
+
+function normalizeCategoryName(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .trim()
+        .toLowerCase();
+}
+
+function isUuid(value) {
+    return typeof value === 'string'
+        && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
 
 // Exporta para o escopo global
 BudgetExporterRoot.StorageManager = BudgetStorage;

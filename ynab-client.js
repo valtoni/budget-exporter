@@ -44,6 +44,30 @@ async function listAccounts(token, budgetId) {
     return (data?.data?.accounts || []).filter((a) => !a.closed && !a.deleted);
 }
 
+// Returns YNAB category groups (each with nested categories). Filters out
+// `deleted` groups and `deleted` categories. `hidden` items are kept — caller
+// decides whether to display them.
+async function listCategories(token, budgetId) {
+    const data = await ynabFetch(`/budgets/${encodeURIComponent(budgetId)}/categories`, token);
+    const groups = data?.data?.category_groups || [];
+    return groups
+        .filter((g) => !g.deleted)
+        .map((g) => ({
+            id: g.id,
+            name: g.name,
+            hidden: !!g.hidden,
+            categories: (g.categories || [])
+                .filter((c) => !c.deleted)
+                .map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    hidden: !!c.hidden,
+                    groupId: g.id,
+                    groupName: g.name
+                }))
+        }));
+}
+
 async function postTransactions(token, budgetId, transactions) {
     const body = JSON.stringify({ transactions });
     const data = await ynabFetch(`/budgets/${encodeURIComponent(budgetId)}/transactions`, token, {
@@ -124,6 +148,7 @@ BudgetExporterRoot.YnabClient = {
     getUser,
     listBudgets,
     listAccounts,
+    listCategories,
     postTransactions,
     toYnabTransaction,
     buildAuthorizeUrl,

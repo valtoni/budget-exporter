@@ -28,7 +28,23 @@
       "PowerShell($env:CI='true'; *)",
       "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[System.IO.Compression.ZipFile]::OpenRead\\('dist\\\\budget-exporter-v1.3.0-chrome.zip'\\); $z.Entries | Select-Object -ExpandProperty FullName | Sort-Object; $z.Dispose\\(\\))",
       "Bash(node -e \"const z=require\\('zlib'\\),fs=require\\('fs'\\);console.log\\('manage.js  gz:',z.gzipSync\\(fs.readFileSync\\('manage.bundle.js'\\)\\).length,'b'\\);console.log\\('manage.css gz:',z.gzipSync\\(fs.readFileSync\\('manage.bundle.css'\\)\\).length,'b'\\);\")",
-      "PowerShell($env:CI='true'; .\\\\build.ps1 -Target chrome 2>&1 | Select-Object -Last 15)"
+      "PowerShell($env:CI='true'; .\\\\build.ps1 -Target chrome 2>&1 | Select-Object -Last 15)",
+      "Bash(awk '/tab-categories/,/<\\\\/section>/' manage.html)",
+      "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[System.IO.Compression.ZipFile]::OpenRead\\('dist\\\\budget-exporter-v1.3.0-chrome.zip'\\); $z.Entries | Where-Object { $_.FullName -match 'storage-manager|ynab|manage|sidebar' } | Select-Object FullName | Sort-Object FullName; $z.Dispose\\(\\))",
+      "Bash(node -e \"const z=require\\('zlib'\\),fs=require\\('fs'\\);console.log\\('manage.js  gz:',z.gzipSync\\(fs.readFileSync\\('manage.bundle.js'\\)\\).length,'b'\\);console.log\\('manage.css gz:',z.gzipSync\\(fs.readFileSync\\('manage.bundle.css'\\)\\).length,'b'\\);console.log\\('sidebar.js gz:',z.gzipSync\\(fs.readFileSync\\('sidebar.bundle.js'\\)\\).length,'b'\\);\")",
+      "WebFetch(domain:app.ynab.com)",
+      "WebSearch",
+      "WebFetch(domain:brandfetch.com)",
+      "WebFetch(domain:www.ynab.com)",
+      "WebFetch(domain:api.youneedabudget.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh api *)",
+      "WebFetch(domain:www.eshmoneycoach.com)",
+      "WebFetch(domain:www.googleapis.com)",
+      "Bash(npm uninstall *)",
+      "Bash(grep -E \"\\\\.css$|files\")",
+      "Bash(awk '{print $5, $9}')"
     ]
   }
 }

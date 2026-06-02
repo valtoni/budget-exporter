@@ -32,7 +32,15 @@
                     </a>
                     <a class="rail-item" id="ynab-nav" href="#tab-ynab" data-section="ynab">
                         <span>YNAB</span>
-                        <span class="ynab-status-dot" id="ynab-status-dot" title="Status YNAB"></span>
+                        <span class="ynab-status-icon" id="ynab-status-icon" title="YNAB desconectado">
+                            <svg class="ynab-icon-on" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                                <path d="M6 2v3M10 2v3M4 5h8v3a4 4 0 0 1-8 0V5z M8 12v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <svg class="ynab-icon-off" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                                <path d="M6 2v3M10 2v3M4 5h8v3a4 4 0 0 1-8 0V5z M8 12v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                <line x1="2.5" y1="2.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
+                        </span>
                     </a>
                 </nav>
 
@@ -95,11 +103,11 @@
                 <header class="main-header">
                     <div>
                         <h1 class="main-title">Categorias</h1>
-                        <p class="main-subtitle">Lista usada para sugerir e classificar payees nas regras e no extrato.</p>
+                        <p class="main-subtitle">Sincronizadas com o seu orçamento YNAB. Renomeie no YNAB e clique em "Sincronizar agora".</p>
                     </div>
                 </header>
 
-                <div class="main-toolbar">
+                <div class="main-toolbar" id="categories-toolbar-fallback" hidden>
                     <form id="add-category-form" class="inline-add">
                         <input type="text" id="category-name" placeholder="Nova categoria" required>
                         <wa-button variant="brand" size="small" type="submit">Adicionar</wa-button>
@@ -107,9 +115,7 @@
                 </div>
 
                 <div class="main-body">
-                    <div class="section-card">
-                        <chip-list id="categories-list"></chip-list>
-                    </div>
+                    <category-tree id="categories-tree"></category-tree>
                 </div>
 
                 <div class="main-footer">

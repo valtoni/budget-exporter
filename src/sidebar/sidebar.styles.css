@@ -5,7 +5,8 @@
 
 :root {
     color-scheme: light;
-    --font-sans: 'Segoe UI Variable Display', 'Segoe UI', -apple-system,
+    --font-sans: 'Source Sans 3 Variable', 'Source Sans 3', 'Source Sans Pro',
+                 'Segoe UI Variable Display', 'Segoe UI', -apple-system,
                  BlinkMacSystemFont, system-ui, sans-serif;
     --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono',
                  'Cascadia Mono', 'Consolas', monospace;
@@ -21,13 +22,23 @@
     --muted: #8a8a7d;
     --muted-2: #b3b2a4;
 
-    --accent: #1f5d40;        /* deep money green */
-    --accent-soft: #e6f0ea;
+    /* Primary brand — YNAB Blurple. Used for UI actions, active states,
+       focus rings, checkboxes, links etc. */
+    --accent: #5B58D6;
+    --accent-soft: #ECECFB;
+    --accent-deep: #4845B8;
+
+    /* Positive semantic — green. ONLY for money inflow, "rule matched"
+       status stripe, "sent" history tint. Never for plain UI accents. */
+    --positive: #1f5d40;
+    --positive-soft: #e6f0ea;
+    --positive-deep: #144d34;
+
     --warn: #b45309;
     --warn-soft: #fdf2db;
     --danger: #b91c1c;
     --danger-soft: #fdecec;
-    --row-selected: #f1ede0;  /* soft warm "in queue" tint */
+    --row-selected: #f1ede0;
     --sent-tint: rgba(31, 93, 64, 0.05);
 
     --r-sm: 4px;
@@ -60,7 +71,7 @@ body {
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font-sans);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.4;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -90,7 +101,7 @@ input, select, textarea { font: inherit; color: inherit; }
 
 .ex-title {
     margin: 0;
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 600;
     letter-spacing: -0.02em;
     color: var(--ink);
@@ -321,7 +332,7 @@ extract-grid,
     width: 2px;
     background: var(--muted-2);
 }
-.tx-row.status-matched::before { background: var(--accent); }
+.tx-row.status-matched::before { background: var(--positive); }
 .tx-row.status-suggested::before,
 .tx-row.status-unmatched::before { background: var(--danger); }
 .tx-row.is-sent { background: var(--sent-tint); }
@@ -352,14 +363,14 @@ extract-grid,
     gap: 1px;
 }
 .tx-date-day {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
 }
 .tx-date-year {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--ink-2);
     font-variant-numeric: tabular-nums;
@@ -372,7 +383,7 @@ extract-grid,
     gap: 1px;
 }
 .tx-payee {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--ink);
     white-space: nowrap;
@@ -381,7 +392,7 @@ extract-grid,
     letter-spacing: -0.005em;
 }
 .tx-category {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
@@ -389,7 +400,7 @@ extract-grid,
 }
 
 .tx-amount {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     text-align: right;
@@ -397,7 +408,7 @@ extract-grid,
     letter-spacing: -0.015em;
 }
 .tx-amount.is-out { color: var(--ink); }
-.tx-amount.is-in { color: var(--accent); }
+.tx-amount.is-in { color: var(--positive); }
 
 .tx-check {
     display: flex;
@@ -498,7 +509,7 @@ extract-grid,
     color: var(--ink);
     padding: 0;
 }
-.dir-btn.in { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.dir-btn.in { color: var(--positive); border-color: var(--positive); background: var(--positive-soft); }
 .dir-btn.out { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
 
 .tx-edit-actions {
@@ -567,7 +578,7 @@ extract-grid,
     font-variant-numeric: tabular-nums;
     color: var(--muted);
 }
-.splits-status-ok { color: var(--accent); font-weight: 600; }
+.splits-status-ok { color: var(--positive); font-weight: 600; }
 .splits-status-diff { color: var(--danger); font-weight: 600; }
 .splits-empty {
     margin: 0;
@@ -757,7 +768,7 @@ extract-grid,
     border-radius: var(--r-sm);
     font-size: 12px;
 }
-.rule-message.success { background: var(--accent-soft); color: var(--accent); }
+.rule-message.success { background: var(--positive-soft); color: var(--positive); }
 .rule-message.error { background: var(--danger-soft); color: var(--danger); }
 
 .dialog-helper {

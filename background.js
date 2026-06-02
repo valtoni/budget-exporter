@@ -4,6 +4,7 @@
 if (typeof self !== 'undefined' && typeof importScripts === 'function') {
     if (!self.YNAB_CONFIG) importScripts('ynab-config.js');
     if (!self.YnabClient) importScripts('ynab-client.js');
+    if (!self.BudgetStorage) importScripts('storage-manager.js');
 }
 
 const storageArea = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
@@ -318,6 +319,61 @@ async function ynabListAccounts(budgetId) {
     return self.YnabClient.listAccounts(config.token, budgetId);
 }
 
+// Pulls the YNAB category list, persists a denormalized cache (with a `byId`
+// lookup for fast display), then runs the rule-migration that points legacy
+// md5 categoryIds to the new YNAB UUIDs. Idempotent — safe to call repeatedly.
+async function ynabSyncCategories(explicitBudgetId) {
+    const config = await getYnabConfigSafe();
+    if (!isYnabTokenValid(config)) throw new Error('Token YNAB expirado ou ausente. Reconecte.');
+    const budgetId = explicitBudgetId || config.budgetId;
+    if (!budgetId) throw new Error('Orcamento YNAB nao selecionado.');
+
+    const groups = await self.YnabClient.listCategories(config.token, budgetId);
+
+    const byId = {};
+    let totalCategories = 0;
+    let hiddenCount = 0;
+    for (const g of groups) {
+        for (const c of g.categories) {
+            byId[c.id] = { name: c.name, groupName: g.name, hidden: c.hidden };
+            totalCategories += 1;
+            if (c.hidden) hiddenCount += 1;
+        }
+    }
+
+    const payload = {
+        budgetId,
+        syncedAt: Date.now(),
+        categoryGroups: groups,
+        byId
+    };
+
+    await self.BudgetStorage.setYnabCategoriesCache(payload);
+
+    let migration = { migrated: 0, orphan: 0, total: 0, skipped: 0 };
+    try {
+        migration = await self.BudgetStorage.migrateRulesToYnabCategories(payload);
+    } catch (e) {
+        console.warn('Migration de regras falhou:', e);
+    }
+
+    return {
+        totalGroups: groups.length,
+        totalCategories,
+        hiddenCount,
+        migration,
+        syncedAt: payload.syncedAt
+    };
+}
+
+// Fire-and-forget wrapper; logs but never throws.
+function ynabSyncCategoriesSafe(budgetId) {
+    return ynabSyncCategories(budgetId).catch((e) => {
+        console.warn('Auto-sync de categorias falhou:', e);
+        return null;
+    });
+}
+
 async function ynabSendTransactions(transactions, ynabAccountIdOverride) {
     const config = await getYnabConfigSafe();
     if (!isYnabTokenValid(config)) throw new Error('Token YNAB expirado ou ausente. Reconecte.');
@@ -407,6 +463,8 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
             case 'YNAB_CONNECT': {
                 const config = await ynabConnect(message.clientId);
                 sendResponse({ ok: true, config });
+                // Fire auto-sync after responding so the user isn't blocked.
+                if (config?.budgetId) ynabSyncCategoriesSafe(config.budgetId);
                 return;
             }
             case 'YNAB_DISCONNECT': {
@@ -425,11 +483,26 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
                 return;
             }
             case 'YNAB_SAVE_MAPPING': {
+                const prevBudgetId = (await getYnabConfigSafe())?.budgetId || '';
                 const next = await patchYnabConfigSafe({
                     budgetId: message.budgetId || '',
                     accountMap: message.accountMap || {}
                 });
                 sendResponse({ ok: true, config: sanitizeYnabConfigForResponse(next) });
+                // Resync categorias se trocou de orçamento ou nunca sincronizou antes.
+                if (next.budgetId && next.budgetId !== prevBudgetId) {
+                    ynabSyncCategoriesSafe(next.budgetId);
+                }
+                return;
+            }
+            case 'YNAB_LIST_CATEGORIES': {
+                const result = await ynabSyncCategories(message.budgetId);
+                sendResponse({ ok: true, ...result });
+                return;
+            }
+            case 'YNAB_GET_CATEGORIES_CACHE': {
+                const cache = await self.BudgetStorage.getYnabCategoriesCache();
+                sendResponse({ ok: true, cache });
                 return;
             }
             case 'YNAB_SEND_TRANSACTIONS': {

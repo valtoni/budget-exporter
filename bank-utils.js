@@ -383,11 +383,23 @@ async function buildReviewState(accountId, rows = []) {
         throw new Error('StorageManager indisponivel');
     }
 
-    const [rules, categories] = await Promise.all([
+    const [rules, categories, ynabCache] = await Promise.all([
         BudgetExporterRoot.BudgetStorage.getRulesForAccountId(account.id),
-        BudgetExporterRoot.BudgetStorage.getCategories()
+        BudgetExporterRoot.BudgetStorage.getCategories(),
+        // YNAB cache may not exist if user never synced — that's fine.
+        BudgetExporterRoot.BudgetStorage.getYnabCategoriesCache
+            ? BudgetExporterRoot.BudgetStorage.getYnabCategoriesCache().catch(() => null)
+            : Promise.resolve(null)
     ]);
+    // Resolve category names with this priority: YNAB cache (current name) >
+    // local categories (legacy). Rules migrated to UUIDs always resolve via
+    // ynabCache first, so renames in YNAB show up on the next capture.
     const categoryIdToName = new Map(categories.map((category) => [category.id, category.name]));
+    if (ynabCache?.byId) {
+        for (const [uuid, entry] of Object.entries(ynabCache.byId)) {
+            categoryIdToName.set(uuid, entry.name);
+        }
+    }
     const suggestionHistory = await BudgetExporterRoot.BudgetStorage.getSuggestionHistory();
     const normalizedRulePatterns = new Set(
         rules
