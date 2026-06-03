@@ -82,7 +82,10 @@ async function postTransactions(token, budgetId, transactions) {
 function toYnabTransaction(tx, ynabAccountId) {
     const hasSplits = Array.isArray(tx.splits) && tx.splits.length > 0;
     const direction = tx.outflow ? -1 : 1;
-    const absMain = parseFloat(String(tx.outflow || tx.inflow || '').replace(',', '.')) || 0;
+    // Math.abs guards against parser leakage of the leading "-" in tx.outflow:
+    // without it, a stored value of "-5.58" combined with direction=-1 produces
+    // +5580 milliunits (inflow in YNAB), the opposite of intent.
+    const absMain = Math.abs(parseFloat(String(tx.outflow || tx.inflow || '').replace(',', '.'))) || 0;
     const mainMilli = Math.round(absMain * 1000) * direction;
     const importBase = `YNAB:${Math.abs(mainMilli)}:${tx.dateIso || ''}:${tx.rawIndex ?? ''}`;
     const importId = importBase.slice(0, 36);
@@ -103,7 +106,7 @@ function toYnabTransaction(tx, ynabAccountId) {
     if (!hasSplits) return base;
 
     base.subtransactions = tx.splits.map((split) => {
-        const absSplit = parseFloat(String(split.amount || '').replace(',', '.')) || 0;
+        const absSplit = Math.abs(parseFloat(String(split.amount || '').replace(',', '.'))) || 0;
         return {
             amount: Math.round(absSplit * 1000) * direction,
             payee_name: payeeName,

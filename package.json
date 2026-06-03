@@ -1,6 +1,6 @@
 {
   "name": "budget-exporter",
-  "version": "1.3.0",
+  "version": "2.0.1",
   "description": "Detect bank pages and export to CSV.",
   "scripts": {
     "version:sync": "node scripts/sync-version.mjs",

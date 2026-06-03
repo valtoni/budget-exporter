@@ -180,9 +180,13 @@ function parseDesjardinsAmount(amountRaw) {
 
 function parseKohoAmount(amountRaw) {
     const isInflow = String(amountRaw || '').includes('+');
+    // Strip BOTH signs — direction is conveyed by which field (inflow/outflow)
+    // is populated, never by the sign of the stored magnitude. Leaving "-" here
+    // caused YNAB sends to invert (outflow stored as "-X.XX" → toYnabTransaction
+    // multiplies by direction=-1 again → positive milliunits → inflow at YNAB).
     const amount = String(amountRaw || '')
         .replace(/\s/g, '')
-        .replace(/\+/g, '')
+        .replace(/[+-]/g, '')
         .replace(/\$/g, '')
         .replace(/,/g, '');
 
