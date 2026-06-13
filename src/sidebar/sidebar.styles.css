@@ -151,6 +151,65 @@ input, select, textarea { font: inherit; color: inherit; }
     color: var(--muted-2);
 }
 
+/* ───────── Destination YNAB trigger ─────────
+   Em evidência vs cutoff: usa cor de marca, fonte maior e bold,
+   fundo soft. É a informação crítica do header — enviar para a conta
+   errada no YNAB é praticamente irreversível. */
+.ex-dest-dropdown {
+    margin: 2px 0;
+}
+.ex-dest-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    margin-right: -10px;
+    background: var(--accent-soft);
+    border: 1px solid transparent;
+    color: var(--accent-deep);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    border-radius: var(--r-md);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+    max-width: 220px;
+}
+.ex-dest-trigger:hover,
+.ex-dest-trigger:focus-visible {
+    background: #DEDEFA;
+    border-color: var(--accent);
+    color: var(--accent-deep);
+    outline: none;
+}
+.ex-dest-trigger.is-locked {
+    cursor: default;
+    /* Single destination — no caret hint or hover affordance, but cor de marca
+       continua sinalizando para onde vai. */
+    background: var(--accent-soft);
+    border-color: transparent;
+}
+.ex-dest-trigger.is-locked:hover {
+    background: var(--accent-soft);
+    border-color: transparent;
+}
+.ex-dest-trigger.is-locked .caret {
+    display: none;
+}
+.ex-dest-trigger .dest-arrow {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+.ex-dest-trigger > #ex-dest-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ex-dest-trigger .caret {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
 .ex-cutoff-input {
     position: absolute;
     width: 0; height: 0; opacity: 0;

@@ -13,6 +13,19 @@
             <h1 class="ex-title">Extrato</h1>
             <div class="ex-account">
                 <span id="ex-account-name" class="ex-account-name">Sem conta detectada</span>
+
+                <wa-dropdown id="ex-dest-dropdown" class="ex-dest-dropdown" placement="bottom-end" hidden>
+                    <button type="button" slot="trigger" id="ex-dest-trigger" class="ex-dest-trigger" title="Destino YNAB">
+                        <svg class="dest-arrow" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+                            <path d="M2 6h7M6 3l3 3-3 3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span id="ex-dest-label">Conta YNAB</span>
+                        <svg class="caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                            <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </wa-dropdown>
+
                 <button type="button" id="ex-cutoff-trigger" class="ex-cutoff-trigger" title="Exportar a partir de">
                     <span id="ex-cutoff-label">—</span>
                     <svg class="caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
@@ -63,7 +76,6 @@
                     </svg>
                 </button>
                 <wa-dropdown-item id="menu-export">Exportar CSV</wa-dropdown-item>
-                <wa-dropdown-item id="menu-change-dest" hidden>Trocar destino YNAB</wa-dropdown-item>
                 <wa-divider></wa-divider>
                 <wa-dropdown-item id="menu-manage">Abrir gestão completa</wa-dropdown-item>
             </wa-dropdown>
@@ -110,13 +122,6 @@
         </form>
         <wa-button slot="footer" variant="brand" id="rule-submit">Salvar regra</wa-button>
         <wa-button slot="footer" appearance="plain" id="rule-cancel">Cancelar</wa-button>
-    </wa-dialog>
-
-    <!-- YNAB destination dialog -->
-    <wa-dialog id="dest-dialog" label="Destino YNAB">
-        <p class="dialog-helper">Escolha a conta YNAB de destino para esta sessão.</p>
-        <select id="dest-select" title="Conta YNAB de destino" aria-label="Conta YNAB de destino"></select>
-        <wa-button slot="footer" variant="brand" id="dest-confirm">Usar esta conta</wa-button>
     </wa-dialog>
 
     <!-- Toast -->

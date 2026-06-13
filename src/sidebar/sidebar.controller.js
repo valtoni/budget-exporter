@@ -61,8 +61,10 @@ function cacheDom() {
     dom.refreshBtn = document.getElementById('ex-refresh');
     dom.menu = document.getElementById('ex-menu');
     dom.menuExport = document.getElementById('menu-export');
-    dom.menuChangeDest = document.getElementById('menu-change-dest');
     dom.menuManage = document.getElementById('menu-manage');
+    dom.destDropdown = document.getElementById('ex-dest-dropdown');
+    dom.destTrigger = document.getElementById('ex-dest-trigger');
+    dom.destLabel = document.getElementById('ex-dest-label');
     dom.primary = document.getElementById('ex-primary');
     dom.primaryLabel = document.getElementById('ex-primary-label');
     dom.secondary = document.getElementById('ex-secondary');
@@ -80,10 +82,6 @@ function cacheDom() {
     dom.ruleMessage = document.getElementById('rule-message');
     dom.ruleSubmit = document.getElementById('rule-submit');
     dom.ruleCancel = document.getElementById('rule-cancel');
-
-    dom.destDialog = document.getElementById('dest-dialog');
-    dom.destSelect = document.getElementById('dest-select');
-    dom.destConfirm = document.getElementById('dest-confirm');
 
     dom.toast = document.getElementById('ex-toast');
     dom.toastMsg = document.getElementById('ex-toast-msg');
@@ -106,7 +104,6 @@ function bindEvents() {
 
     dom.refreshBtn.addEventListener('click', onRefreshClick);
     dom.menuExport.addEventListener('click', () => { closeMenu(); exportSelected(); });
-    dom.menuChangeDest.addEventListener('click', () => { closeMenu(); openDestinationDialog(); });
     dom.menuManage.addEventListener('click', () => { closeMenu(); openManagePage(); });
     dom.primary.addEventListener('click', onPrimaryAction);
     dom.secondary.addEventListener('click', onSecondaryAction);
@@ -115,10 +112,12 @@ function bindEvents() {
     dom.ruleCancel.addEventListener('click', () => closeDialog(dom.ruleDialog));
     dom.ruleForm.addEventListener('submit', (e) => { e.preventDefault(); saveRule(); });
 
-    dom.destConfirm.addEventListener('click', () => {
-        state.ynabAccountId = dom.destSelect.value;
+    dom.destDropdown.addEventListener('wa-select', (e) => {
+        const id = e.detail?.item?.dataset?.id;
+        if (!id || id === state.ynabAccountId) return;
+        state.ynabAccountId = id;
+        renderDestLabel();
         persistYnabPreference();
-        closeDialog(dom.destDialog);
         showToast('Destino YNAB atualizado.', 'success');
     });
 
@@ -801,7 +800,6 @@ function refreshYnabButtonState() {
         dom.primary.setAttribute('variant', 'brand');
         dom.secondary.hidden = true;
         dom.menuExport.hidden = false;
-        dom.menuChangeDest.hidden = destinations.length <= 1;
 
         const lastUsedId = cfg?.lastUsedYnabAccount?.[bankAccountId];
         if (lastUsedId && destinations.some((d) => d.id === lastUsedId)) {
@@ -818,26 +816,59 @@ function refreshYnabButtonState() {
         dom.secondary.dataset.action = 'configure-ynab';
         dom.secondary.hidden = false;
         dom.menuExport.hidden = true;
-        dom.menuChangeDest.hidden = true;
         state.ynabAccountId = null;
     }
+
+    syncDestinationDropdown(destinations);
 }
 
-function openDestinationDialog() {
+function syncDestinationDropdown(destinations) {
+    if (!dom.destDropdown) return;
+
+    if (!destinations || destinations.length === 0) {
+        dom.destDropdown.hidden = true;
+        return;
+    }
+
+    // Rebuild items so the list stays in sync with the YNAB config.
+    // Children outside the `slot="trigger"` button are dropdown items.
+    Array.from(dom.destDropdown.children).forEach((child) => {
+        if (child.getAttribute && child.getAttribute('slot') === 'trigger') return;
+        dom.destDropdown.removeChild(child);
+    });
+
+    destinations.forEach((d) => {
+        const item = document.createElement('wa-dropdown-item');
+        item.dataset.id = d.id;
+        item.textContent = d.name || d.id;
+        if (d.id === state.ynabAccountId) {
+            // Visual hint that this is the active destination.
+            item.setAttribute('checked', '');
+        }
+        dom.destDropdown.appendChild(item);
+    });
+
+    // Single-destination: keep visible (so the user sees where it goes) but
+    // disable the dropdown to make the read-only nature obvious.
+    if (destinations.length === 1) {
+        dom.destTrigger.setAttribute('disabled', '');
+        dom.destTrigger.classList.add('is-locked');
+    } else {
+        dom.destTrigger.removeAttribute('disabled');
+        dom.destTrigger.classList.remove('is-locked');
+    }
+
+    dom.destDropdown.hidden = false;
+    renderDestLabel();
+}
+
+function renderDestLabel() {
+    if (!dom.destLabel) return;
     const cfg = state.ynabConfig;
     const bankAccountId = state.review?.account?.accountId;
     const destinations = bankAccountId && cfg?.accountMap ? (cfg.accountMap[bankAccountId] || []) : [];
-    if (destinations.length <= 1) return;
-
-    dom.destSelect.innerHTML = '';
-    destinations.forEach((d) => {
-        const opt = document.createElement('option');
-        opt.value = d.id;
-        opt.textContent = d.name || d.id;
-        dom.destSelect.appendChild(opt);
-    });
-    if (state.ynabAccountId) dom.destSelect.value = state.ynabAccountId;
-    openDialog(dom.destDialog);
+    const current = destinations.find((d) => d.id === state.ynabAccountId);
+    dom.destLabel.textContent = current?.name || current?.id || 'Conta YNAB';
 }
 
 function persistYnabPreference() {
