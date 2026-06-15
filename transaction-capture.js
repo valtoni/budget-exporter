@@ -153,6 +153,41 @@
         };
     }
 
+    // ── SPA navigation detection ────────────────────────────────────────────
+    // Banks like Desjardins use history.pushState/replaceState to switch
+    // between accounts without a full page reload. The browser's tabs.onUpdated
+    // does NOT fire for those, so the sidebar would otherwise keep showing
+    // stale data from the previously-selected account.
+    let lastUrl = window.location.href;
+    function notifyNavigation() {
+        const url = window.location.href;
+        if (url === lastUrl) return;
+        lastUrl = url;
+        try {
+            window.postMessage(
+                { source: SOURCE_TAG, kind: 'navigation', url, ts: Date.now() },
+                window.location.origin
+            );
+        } catch (e) {
+            // postMessage is best-effort.
+        }
+    }
+
+    function patchHistoryMethod(name) {
+        const original = window.history[name];
+        if (typeof original !== 'function') return;
+        window.history[name] = function patched(...args) {
+            const result = original.apply(this, args);
+            // setTimeout 0 lets the browser commit the URL change before we read it.
+            setTimeout(notifyNavigation, 0);
+            return result;
+        };
+    }
+    patchHistoryMethod('pushState');
+    patchHistoryMethod('replaceState');
+    window.addEventListener('popstate', notifyNavigation);
+    window.addEventListener('hashchange', notifyNavigation);
+
     // ── XMLHttpRequest ──────────────────────────────────────────────────────
     const OriginalXHR = window.XMLHttpRequest;
     if (typeof OriginalXHR === 'function' && OriginalXHR.prototype) {

@@ -540,8 +540,31 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
                 return;
             }
             case 'REFRESH_ACTIVE_TAB_REVIEW': {
-                const result = await refreshActiveTabReview();
-                sendResponse(result);
+                broadcastReviewLoading(true);
+                try {
+                    const result = await refreshActiveTabReview();
+                    sendResponse(result);
+                } finally {
+                    broadcastReviewLoading(false);
+                }
+                return;
+            }
+            case 'PAGE_NAVIGATED': {
+                // SPA navigation detected by transaction-capture.js. We own the timing here:
+                // broadcast loading immediately so the user sees feedback for the FULL wait,
+                // then give the page ~800ms to fire its new API calls before re-extracting.
+                broadcastReviewLoading(true);
+                sendResponse({ ok: true });
+                setTimeout(async () => {
+                    try {
+                        const result = await refreshActiveTabReview();
+                        if (result?.review) await setActiveReview(result.review);
+                    } catch (error) {
+                        console.warn('SPA-nav refresh falhou:', error);
+                    } finally {
+                        broadcastReviewLoading(false);
+                    }
+                }, SPA_NAV_REFRESH_DELAY_MS);
                 return;
             }
             case 'OPEN_REVIEW_SIDEBAR': {
@@ -682,11 +705,18 @@ if (runtimeAPI.onInstalled) {
 // Debounced because SPA navigations fire onUpdated multiple times and the
 // transaction-capture script needs a moment to intercept the API calls.
 const AUTO_REFRESH_DELAY_MS = 1500;
+// SPA navigation is a shorter wait — the user is already engaged and the page
+// fires its new API calls right away. 1500ms felt sluggish in that flow.
+const SPA_NAV_REFRESH_DELAY_MS = 800;
 const autoRefreshTimers = new Map();
 
 function scheduleAutoRefresh(tabId) {
     const existing = autoRefreshTimers.get(tabId);
     if (existing) clearTimeout(existing);
+    // Broadcast loading IMMEDIATELY so any open sidebar shows the overlay
+    // throughout the wait — not just during the ~300ms of actual fetch work
+    // that happens after AUTO_REFRESH_DELAY_MS elapses.
+    broadcastReviewLoading(true);
     const timer = setTimeout(async () => {
         autoRefreshTimers.delete(tabId);
         try {
@@ -696,9 +726,22 @@ function scheduleAutoRefresh(tabId) {
             }
         } catch (error) {
             console.warn('Auto-refresh falhou:', error);
+        } finally {
+            broadcastReviewLoading(false);
         }
     }, AUTO_REFRESH_DELAY_MS);
     autoRefreshTimers.set(tabId, timer);
+}
+
+// Notify any open sidebar that a review fetch is in progress so it can show a
+// loading overlay. Best-effort — if no sidebar is listening the message is dropped.
+function broadcastReviewLoading(isLoading) {
+    try {
+        runtimeAPI.sendMessage({ type: 'ACTIVE_REVIEW_LOADING', isLoading })
+            .catch(() => { /* no listener — fine */ });
+    } catch (_) {
+        // ignored
+    }
 }
 
 if (tabsAPI?.onUpdated) {

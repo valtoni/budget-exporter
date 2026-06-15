@@ -11,6 +11,18 @@ window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     const data = event.data;
     if (!data || data.source !== CAPTURE_SOURCE_TAG) return;
+
+    // SPA navigation: drop stale captures from the previous account and tell
+    // the background to refresh. The background owns the timing — it will
+    // show the loading overlay immediately and wait for new captures to
+    // settle before re-extracting. Without the buffer clear, switching
+    // accounts on Desjardins would mix transactions from both.
+    if (data.kind === 'navigation') {
+        capturedResponses.length = 0;
+        runtimeAPI.sendMessage({ type: 'PAGE_NAVIGATED' }).catch(() => {});
+        return;
+    }
+
     if (typeof data.url !== 'string' || typeof data.body !== 'string') return;
 
     capturedResponses.push({

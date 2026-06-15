@@ -129,10 +129,19 @@
         <span id="ex-toast-msg"></span>
     </wa-callout>
 
-    <!-- Sync overlay -->
+    <!-- Sync overlay (YNAB send) -->
     <div id="sync-overlay" class="sync-overlay" hidden>
         <div class="sync-spinner"></div>
         <p class="sync-label">Sincronizando com YNAB…</p>
+    </div>
+
+    <!-- Load overlay (transaction fetch / SPA navigation) -->
+    <div id="load-overlay" class="sync-overlay load-overlay" hidden>
+        <svg class="load-spinner" viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
+            <path d="M6 24a18 18 0 0 1 30.7-12.7M42 24a18 18 0 0 1-30.7 12.7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M30 6h7v7M18 42h-7v-7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="sync-label">Carregando transações…</p>
     </div>
 
     <script src="bank-utils.js"></script>

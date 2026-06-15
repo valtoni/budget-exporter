@@ -43,7 +43,14 @@ async function init() {
     if (current) {
         applyReview(current);
     } else {
-        await refreshReview();
+        // No cached review — full fetch from the page. Show the load overlay
+        // so the user knows the empty grid is loading, not stuck.
+        showLoadOverlay();
+        try {
+            await refreshReview();
+        } finally {
+            hideLoadOverlay();
+        }
     }
 }
 
@@ -123,7 +130,11 @@ function bindEvents() {
 
     runtimeAPI.onMessage.addListener((message) => {
         if (message.type === 'ACTIVE_REVIEW_UPDATED' && message.review) {
+            hideLoadOverlay();
             applyReview(message.review);
+        } else if (message.type === 'ACTIVE_REVIEW_LOADING') {
+            if (message.isLoading) showLoadOverlay();
+            else hideLoadOverlay();
         }
     });
 
@@ -888,9 +899,11 @@ function onSecondaryAction() {
 async function onRefreshClick() {
     if (dom.refreshBtn.classList.contains('is-spinning')) return;
     dom.refreshBtn.classList.add('is-spinning');
+    showLoadOverlay();
     try {
         await refreshReview();
     } finally {
+        hideLoadOverlay();
         setTimeout(() => dom.refreshBtn.classList.remove('is-spinning'), 400);
     }
 }
@@ -1067,6 +1080,15 @@ function showSyncOverlay() {
 }
 function hideSyncOverlay() {
     const overlay = document.getElementById('sync-overlay');
+    if (overlay) overlay.hidden = true;
+}
+
+function showLoadOverlay() {
+    const overlay = document.getElementById('load-overlay');
+    if (overlay) overlay.hidden = false;
+}
+function hideLoadOverlay() {
+    const overlay = document.getElementById('load-overlay');
     if (overlay) overlay.hidden = true;
 }
 
