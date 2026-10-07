@@ -1,3 +1,42 @@
+---
+memory:
+  id: concept.build-e-versionamento
+  kind: concept
+  index: true
+  aliases:
+  - build.ps1
+  - empacotar a extensao
+  - gerar xpi e zip
+  - bump de versao
+  - sync-version
+  - versao canonica do manifest
+  - publicar no amo chrome web store edge addons
+  tags:
+  - build
+  - packaging
+  - versioning
+  - powershell
+  - esbuild
+  - xpi
+  - zip
+  - firefox
+  - chrome
+  - edge
+  surfaces:
+  - infra
+  relations:
+  - type: part_of
+    target: domain.budget-exporter
+  sections:
+  - heading: Uso
+  - heading: Estrategia de manifest
+  - heading: Versionamento (canonico)
+  - heading: O que o script faz
+  - heading: Nomes dos arquivos gerados
+  - heading: Arquivos incluidos
+  - heading: Arquivos excluidos
+  - heading: Publicacao
+---
 # Build Script - Budget Exporter
 
 Script PowerShell para gerar os pacotes da extensao (Firefox `.xpi`, Chrome/Edge `.zip`) a partir da raiz do projeto.

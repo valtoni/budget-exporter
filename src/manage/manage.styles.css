@@ -1,72 +1,10 @@
 /* ───────────────────────────────────────────────────────────────
-   Budget Exporter — manage page (SPA shell with left rail)
+   Budget Exporter — página de gerenciamento (casca SPA com rail)
+   Tokens, reset e tema do host vivem em src/common/tokens.css —
+   os mesmos da sidebar. Esta página é a tela de OPÇÕES DA EXTENSÃO,
+   categoria que Firefox e Edge desenham com a linguagem do próprio
+   navegador; ela não tem identidade visual própria.
    ─────────────────────────────────────────────────────────────── */
-
-:root {
-    color-scheme: light;
-    --font-sans: 'Source Sans 3 Variable', 'Source Sans 3', 'Source Sans Pro',
-                 'Segoe UI Variable Display', 'Segoe UI', -apple-system,
-                 BlinkMacSystemFont, system-ui, sans-serif;
-    --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono',
-                 'Cascadia Mono', 'Consolas', monospace;
-
-    --bg: #fafaf7;
-    --bg-elevated: #ffffff;
-    --surface-2: #f3f3ef;
-    --line: #e6e4dd;
-    --line-strong: #d2cfc5;
-
-    --ink: #14150f;
-    --ink-2: #3a3b34;
-    --muted: #8a8a7d;
-    --muted-2: #b3b2a4;
-
-    /* Primary brand — YNAB Blurple. Used for UI actions, active states,
-       focus rings, checkboxes, the + button etc. */
-    --accent: #5B58D6;
-    --accent-soft: #ECECFB;
-    --accent-deep: #4845B8;
-
-    /* Positive semantic — green. Used ONLY for money inflow, success
-       indicators, "connected" plug, "rule matched" status stripes. */
-    --positive: #1f5d40;
-    --positive-soft: #e6f0ea;
-
-    --warn: #b45309;
-    --warn-soft: #fdf2db;
-    --danger: #b91c1c;
-    --danger-soft: #fdecec;
-    --row-selected: #f1ede0;
-
-    --r-sm: 4px;
-    --r-md: 6px;
-    --r-lg: 10px;
-
-    --rail-width: 260px;
-
-    /* YNAB "Blurple" rail palette (dark variant) */
-    --rail-bg: #1F1B47;
-    --rail-bg-hover: #2A2658;
-    --rail-bg-active: #3F3C7A;
-    --rail-text: #ECECF5;
-    --rail-text-muted: #9F9DC0;
-    --rail-text-dim: rgba(255, 255, 255, 0.32);
-    --rail-text-on-active: #FFFFFF;
-    --rail-divider: rgba(255, 255, 255, 0.08);
-
-    --wa-color-brand-fill-loud: var(--accent);
-    --wa-color-brand-on-loud: #ffffff;
-    --wa-color-brand-border-loud: var(--accent);
-    --wa-color-surface-default: var(--bg-elevated);
-    --wa-color-surface-raised: var(--bg-elevated);
-    --wa-color-text-normal: var(--ink);
-    --wa-color-text-quiet: var(--muted);
-    --wa-border-radius-m: var(--r-md);
-}
-
-* { box-sizing: border-box; }
-
-[hidden] { display: none !important; }
 
 html, body {
     height: 100%;
@@ -78,14 +16,12 @@ body {
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font-sans);
-    font-size: 14px;
-    line-height: 1.4;
+    /* Mesma densidade da sidebar: as duas telas são superfícies do navegador. */
+    font-size: 13px;
+    line-height: 1.38;
     -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
+    text-rendering: optimizeSpeed;
 }
-
-button { font: inherit; cursor: pointer; }
-input, select, textarea { font: inherit; color: inherit; }
 
 /* ───────── App shell — rail + main ───────── */
 .app-shell {
@@ -101,12 +37,17 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* ───────── Rail (YNAB Blurple) ───────── */
+/* Coluna de navegação no idioma de página de preferências: fundo de barra de
+   ferramentas à esquerda, conteúdo em superfície elevada à direita, separados
+   por uma hairline. O rail era uma coluna roxa escura fixa — nem
+   about:preferences nem as configurações do Edge fazem isso, e ela ficava
+   igualmente deslocada nos dois temas. */
 .rail {
     display: grid;
     grid-template-rows: auto 1fr auto;
     gap: 6px;
-    padding: 16px 0;
-    border-right: none;
+    padding: 12px 0;
+    border-right: 1px solid var(--line);
     background: var(--rail-bg);
     color: var(--rail-text);
     min-height: 0;
@@ -175,7 +116,9 @@ input, select, textarea { font: inherit; color: inherit; }
     font-weight: 500;
     color: var(--rail-text-dim);
     padding: 1px 6px;
-    background: rgba(255, 255, 255, 0.06);
+    /* Era rgba(255,255,255,.06): branco translucido so tinha contraste sobre o
+       rail roxo escuro. Agora e um overlay neutro que funciona nos dois temas. */
+    background: var(--rail-chip-bg);
     border-radius: 999px;
     min-width: 18px;
     text-align: center;
@@ -183,11 +126,11 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .rail-item:hover .rail-count {
     color: var(--rail-text);
-    background: rgba(255, 255, 255, 0.10);
+    background: var(--rail-chip-bg-strong);
 }
 .rail-item.is-active .rail-count {
     color: var(--rail-text-on-active);
-    background: rgba(255, 255, 255, 0.18);
+    background: var(--rail-chip-bg-strong);
 }
 
 .rail-section-title {
@@ -247,14 +190,14 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .ynab-status-icon .ynab-icon-off {
     display: inline-flex;
-    color: #FF7B7B;
+    color: var(--danger);
 }
 .ynab-status-icon.is-connected .ynab-icon-on {
     display: inline-flex;
-    color: #5CE5A6;
+    color: var(--positive);
 }
 .ynab-status-icon.is-connected .ynab-icon-off { display: none; }
-.ynab-status-icon.is-connected.is-warn .ynab-icon-on { color: #FFCB66; }
+.ynab-status-icon.is-connected.is-warn .ynab-icon-on { color: var(--warn); }
 
 /* ───────── Main — host for tab-panes ───────── */
 .main {
@@ -263,7 +206,9 @@ input, select, textarea { font: inherit; color: inherit; }
     height: 100%;
     min-height: 0;
     overflow: hidden;
-    background: var(--bg);
+    /* Superfície elevada: é o que separa o conteúdo do rail agora que os dois
+       usam a paleta do host em vez de roxo vs. bege. */
+    background: var(--bg-elevated);
 }
 
 /* Tab visibility: each active tab is its own SPA grid */
@@ -671,7 +616,7 @@ manage-rules-table {
 .mr-page-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
 .mr-page-btn.is-active {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border-color: var(--accent);
 }
 .mr-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -720,11 +665,11 @@ manage-rules-table {
 }
 .ynab-step.is-active .ynab-step-num {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
 }
 .ynab-step.is-done .ynab-step-num {
     background: var(--positive);
-    color: #fff;
+    color: var(--on-positive);
 }
 .ynab-step-title {
     margin: 0;
@@ -965,7 +910,7 @@ category-tree {
     padding: 0;
     margin: 0;
     background: var(--accent);
-    color: #ffffff;
+    color: var(--on-accent);
     border: none;
     border-radius: 50%;
     -webkit-appearance: none;
@@ -1059,7 +1004,7 @@ category-tree {
 }
 .ct-popover-btn-ok {
     background: var(--accent);
-    color: #ffffff;
+    color: var(--on-accent);
     border-color: var(--accent);
 }
 .ct-popover-btn-ok:hover {

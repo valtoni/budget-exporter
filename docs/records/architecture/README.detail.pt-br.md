@@ -1,3 +1,39 @@
+---
+memory:
+  id: component.budget-exporter-extension
+  kind: component
+  index: true
+  aliases:
+  - arquitetura do budget exporter
+  - sidebar de revisao
+  - motor de regras de payee
+  - adicionar novo banco
+  - estrategia de extracao de transacoes
+  - manifest v3 firefox chrome edge
+  tags:
+  - webextension
+  - manifest-v3
+  - sidebar
+  - side-panel
+  - rules-engine
+  - payee
+  - csv-export
+  - storage-local
+  - strategies
+  surfaces:
+  - frontend-ui
+  - data
+  relations:
+  - type: part_of
+    target: domain.budget-exporter
+  sections:
+  - heading: Visao Geral
+  - heading: Principais Funcionalidades
+  - heading: Arquitetura Atual
+  - heading: Fluxo de Revisao
+  - heading: Bancos Suportados
+  - heading: Extensibilidade
+---
 # Budget Exporter
 
 Extensao multi-navegador (Firefox, Chrome, Edge) que extrai transacoes de paginas bancarias suportadas, aplica padronizacao local de payees, sugere categorias de forma deterministica e exporta CSV revisado para o YNAB.
@@ -215,7 +251,7 @@ A versao vive em **um unico lugar**: o campo `"version"` em `manifest.json`. Par
 
 Tambem da pra rodar isolado com `npm run version:sync`. Nunca edite a versao diretamente em `manifest.chrome.json` ou `package.json` — o proximo sync sobrescreve.
 
-Leia tambem: [README-BUILD.md](README-BUILD.md)
+Leia tambem: [README-BUILD.md](../build/README-BUILD.md)
 
 ## Extensibilidade
 

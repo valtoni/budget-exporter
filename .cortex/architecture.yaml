@@ -1,0 +1,234 @@
+schemaVersion: 1
+status: confirmed
+analyzedBy: claude-opus-5
+rationale: >-
+  Budget Exporter e uma WebExtension MV3 organizada por responsabilidade em
+  modulos de arquivo unico: nao ha camada de servidor. A arquitetura observada e
+  um pipeline captura -> estrategia por conta -> normalizacao/regras ->
+  persistencia local -> UI de revisao -> exportacao (CSV ou API do YNAB), com um
+  tooling de build esbuild/PowerShell que gera bundles versionados a partir do
+  manifest canonico. O vocabulario abaixo usa os nomes do proprio projeto
+  (capture, strategy, bank-utils, storage-manager, sidebar, manage), nunca uma
+  taxonomia universal.
+
+layers:
+  - id: extension-runtime
+    description: >-
+      Pontos de entrada do navegador definidos pelo manifest MV3: service worker
+      de background e o popup/acao da toolbar que abre a UI de revisao.
+  - id: capture
+    description: >-
+      Injecao em pagina e interceptacao das respostas JSON do banco; produz as
+      capturas cruas que alimentam as estrategias. Nao ha parsing de DOM/CSS.
+  - id: bank-strategies
+    description: >-
+      Um modulo por conta suportada, declarando apiMatchers e convertendo o JSON
+      capturado em transacoes normalizadas ({date, payee, amount}).
+  - id: domain-utils
+    description: >-
+      Deteccao de conta, normalizacao de payee, motor de regras e sugestoes
+      deterministicas e geracao de CSV compativel com o YNAB.
+  - id: persistence
+    description: >-
+      Persistencia local em storage.local para regras de payee, categorias,
+      contas e historico de sugestoes. Nao ha backend nem sincronizacao remota.
+  - id: ui
+    description: >-
+      Aplicacoes de tela: sidebar/side panel de revisao operacional e a pagina
+      de gerenciamento (regras, categorias, contas, import/export).
+  - id: integration
+    description: >-
+      Cliente e configuracao da API do YNAB, usados quando o usuario envia as
+      transacoes revisadas em vez de baixar o CSV.
+  - id: build-tooling
+    description: >-
+      Bundling esbuild e propagacao da versao canonica do manifest.json para os
+      demais arquivos empacotados.
+  - id: generated
+    description: >-
+      Artefatos gerados pelo esbuild e commitados na raiz para serem carregados
+      diretamente pelo navegador; nunca editados a mao.
+  - id: governance
+    description: >-
+      Definicao de arquitetura do Cortex observada pelo proprio workspace, para
+      que qualquer mudanca de estrutura invalide e reclassifique o grafo.
+
+surfaces:
+  - id: frontend-ui
+    description: >-
+      Tudo que o usuario ve ou aciona no navegador: sidebar de revisao, pagina
+      de gerenciamento, popup e o runtime da extensao que os abre.
+  - id: data
+    description: >-
+      Extracao, normalizacao, regras, persistencia local e exportacao dos dados
+      de transacao.
+  - id: infra
+    description: >-
+      Build, empacotamento, versionamento e a propria definicao de arquitetura.
+
+components:
+  - id: background-worker
+    description: Service worker MV3 e popup/acao que coordenam captura e exportacao.
+  - id: content-capture
+    description: Content script e loader que capturam as respostas JSON do banco.
+  - id: strategy-desjardins
+    description: Estrategias de conta corrente e cartao de credito Desjardins.
+  - id: strategy-koho
+    description: Estrategia do cartao pre-pago Koho.
+  - id: bank-utils
+    description: Deteccao de conta, normalizacao, sugestoes e geracao de CSV.
+  - id: storage-manager
+    description: Acesso unico ao storage.local (regras, categorias, contas, historico).
+  - id: sidebar-app
+    description: Aplicacao de revisao (sidebar no Firefox, side panel no Chrome/Edge).
+  - id: manage-app
+    description: Pagina de gerenciamento completa de regras, categorias e contas.
+  - id: ynab-integration
+    description: Cliente HTTP e configuracao da API do YNAB.
+  - id: build-pipeline
+    description: Configuracao esbuild e script de sincronizacao de versao.
+  - id: generated-bundles
+    description: Bundles esbuild carregados pelas paginas da extensao.
+  - id: cortex-architecture
+    description: Definicao de arquitetura versionada consumida pelo Cortex.
+
+rules:
+  - id: cortex-architecture-definition
+    rationale: >-
+      A propria definicao de arquitetura e observada para que qualquer alteracao
+      invalide e reclassifique o grafo.
+    paths:
+      - ".cortex/architecture.yaml"
+    layer: governance
+    surface: infra
+    component: cortex-architecture
+    confidenceBasisPoints: 10000
+    evidence:
+      - "workspace.architecture.definition aponta para este arquivo em .cortex/config.yaml"
+  - id: generated-esbuild-bundles
+    rationale: Saidas do esbuild commitadas na raiz, geradas por build.config.mjs.
+    paths:
+      - "*.bundle.js"
+    layer: generated
+    surface: frontend-ui
+    component: generated-bundles
+    confidenceBasisPoints: 10000
+    evidence:
+      - "build.config.mjs define entryNames '[name].bundle' e outdir na raiz do projeto"
+  - id: build-tooling-scripts
+    rationale: Bundling e propagacao da versao canonica do manifest.
+    paths:
+      - "build.config.mjs"
+      - "scripts/*.mjs"
+    layer: build-tooling
+    surface: infra
+    component: build-pipeline
+    confidenceBasisPoints: 10000
+    evidence:
+      - "scripts/sync-version.mjs e chamado pelo hook prebuild do package.json"
+      - "build.config.mjs e o unico ponto de configuracao do esbuild"
+  - id: sidebar-ui-modules
+    rationale: Controller, entry e componentes da UI de revisao.
+    paths:
+      - "src/sidebar/**/*.js"
+    layer: ui
+    surface: frontend-ui
+    component: sidebar-app
+    confidenceBasisPoints: 10000
+    evidence:
+      - "src/sidebar/sidebar.entry.js e entrypoint declarado em build.config.mjs"
+  - id: manage-ui-modules
+    rationale: Controller, entry e componentes da pagina de gerenciamento.
+    paths:
+      - "src/manage/**/*.js"
+    layer: ui
+    surface: frontend-ui
+    component: manage-app
+    confidenceBasisPoints: 10000
+    evidence:
+      - "src/manage/manage.entry.js e entrypoint declarado em build.config.mjs"
+  - id: shared-ui-modules
+    rationale: Modulos compartilhados entre as duas aplicacoes de tela.
+    paths:
+      - "src/common/**/*.js"
+    layer: ui
+    surface: frontend-ui
+    component: sidebar-app
+    confidenceBasisPoints: 8000
+    evidence:
+      - "src/common e importado pelos dois entrypoints de UI declarados em build.config.mjs"
+  - id: desjardins-strategies
+    rationale: Estrategias de extracao das contas Desjardins.
+    paths:
+      - "strategy-desjardins-*.js"
+    layer: bank-strategies
+    surface: data
+    component: strategy-desjardins
+    confidenceBasisPoints: 10000
+    evidence:
+      - "os arquivos exportam apiMatchers e extractFromCaptures conforme o guia de extensibilidade"
+  - id: koho-strategies
+    rationale: Estrategia de extracao do cartao pre-pago Koho.
+    paths:
+      - "strategy-koho-*.js"
+    layer: bank-strategies
+    surface: data
+    component: strategy-koho
+    confidenceBasisPoints: 10000
+    evidence:
+      - "o arquivo exporta apiMatchers e extractFromCaptures conforme o guia de extensibilidade"
+  - id: page-capture
+    rationale: Content script e captura das respostas JSON do banco.
+    paths:
+      - "content.js"
+      - "capture-loader.js"
+      - "transaction-capture.js"
+    layer: capture
+    surface: data
+    component: content-capture
+    confidenceBasisPoints: 10000
+    evidence:
+      - "content.js e declarado em content_scripts no manifest.json"
+      - "a extracao roda sobre respostas JSON capturadas, sem parsing de DOM"
+  - id: extension-entrypoints
+    rationale: Service worker de background e popup/acao da toolbar.
+    paths:
+      - "background.js"
+      - "popup.js"
+    layer: extension-runtime
+    surface: frontend-ui
+    component: background-worker
+    confidenceBasisPoints: 10000
+    evidence:
+      - "background.js e declarado como service worker no manifest MV3"
+  - id: ynab-api-client
+    rationale: Cliente e configuracao da integracao com a API do YNAB.
+    paths:
+      - "ynab-client.js"
+      - "ynab-config.js"
+    layer: integration
+    surface: data
+    component: ynab-integration
+    confidenceBasisPoints: 10000
+    evidence:
+      - "modulos dedicados ao envio das transacoes revisadas para o YNAB"
+  - id: local-persistence
+    rationale: Acesso unico ao storage local da extensao.
+    paths:
+      - "storage-manager.js"
+    layer: persistence
+    surface: data
+    component: storage-manager
+    confidenceBasisPoints: 10000
+    evidence:
+      - "StorageManager e a unica porta para payee_rules, categories, accounts e suggestion_history"
+  - id: bank-domain-utils
+    rationale: Deteccao de conta, normalizacao, sugestoes e geracao de CSV.
+    paths:
+      - "bank-utils.js"
+    layer: domain-utils
+    surface: data
+    component: bank-utils
+    confidenceBasisPoints: 10000
+    evidence:
+      - "BankUtils concentra BANK_ALIASES, ACCOUNTS, ACCOUNT_PROCESSING e toCsv"

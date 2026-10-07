@@ -1,0 +1,112 @@
+# Ontologia FECHADA da memória semântica (fonte única dos enums e pesos).
+# Tipos novos NUNCA são criados automaticamente — proposta vai ao link-report.
+version: 1
+
+kinds:
+  - contract
+  - decision
+  - investigation
+  - domain
+  - component
+  - concept
+  - rule
+  - incident
+  - work
+  - blocker
+  - history
+  - source_section
+
+# Campos string livres permitidos por kind (anti-cópia de fato canônico).
+# title/aliases/tags/surfaces são metadados de RECUPERAÇÃO, sempre permitidos.
+# statement/trigger só em rule|incident (a migração transfere a PROPRIEDADE
+# do fato para o nó — ver entrypoint.md).
+ownedContentKinds: [rule, incident]
+
+relations:
+  - { name: part_of,        inverse: null,           weight: 0.35 }
+  - { name: depends_on,     inverse: null,           weight: 0.8 }
+  - { name: affects,        inverse: null,           weight: 0.6 }
+  - { name: implements,     inverse: implemented_by, weight: 0.7 }
+  - { name: implemented_by, inverse: implements,     weight: 0.7 }
+  - { name: governed_by,    inverse: null,           weight: 1.0 }
+  # evolução de decisões (curadoria semântica: cadeias explícitas, nunca related_to)
+  - { name: supersedes,     inverse: superseded_by,  weight: 0.5 }
+  - { name: superseded_by,  inverse: supersedes,     weight: 0.5 }
+  - { name: extends,        inverse: extended_by,    weight: 0.4 }
+  - { name: extended_by,    inverse: extends,        weight: 0.4 }
+  - { name: amends,         inverse: amended_by,     weight: 0.4 }
+  - { name: amended_by,     inverse: amends,         weight: 0.4 }
+  - { name: affected_by,    inverse: affects,        weight: 0.6 }
+  - { name: caused_by,      inverse: null,           weight: 0.5 }
+  - { name: resolved_by,    inverse: null,           weight: 0.5 }
+  - { name: learned_from,   inverse: null,           weight: 0.5 }
+  - { name: validated_by,   inverse: null,           weight: 0.4 }
+  - { name: blocked_by,     inverse: null,           weight: 0.6 }
+  - { name: has_history,    inverse: null,           weight: 0.3 }
+  # exigidos pela arquitetura de fonte única (envelopes/históricos auxiliares)
+  - { name: supports,       inverse: null,           weight: 0.3 }
+  - { name: history_of,     inverse: null,           weight: 0.3 }
+  - { name: related_to,     inverse: related_to,     weight: 0.2 }
+
+# Lifecycle DERIVADO pelo builder a partir do corpo canônico da decisão
+# ("## Status" moderno ou "- Status:" antigo) — NUNCA declarado no frontmatter.
+# retrievable ≠ authoritative: obsolete/superseded continuam pesquisáveis
+# (precedente histórico), mas nunca são apresentadas como autoridade vigente.
+lifecycles: [proposed, accepted, in_progress, implemented, obsolete, superseded]
+
+surfaces: [backend, frontend-ui, mobile, data, security, guardrails, infra]
+
+# Contratos universais por superfície (o resolver SEMPRE inclui os da
+# superfície detectada na tarefa).
+surfaceContracts:
+  backend: [contract.backend]
+  frontend-ui: [contract.frontend-ui]
+  mobile: [contract.frontend-ui]
+  data: [contract.backend]
+  security: [contract.security]
+  guardrails: [contract.guardrails]
+  infra: [contract.backend]
+
+# Keywords de detecção de superfície (normalizadas: lowercase, sem acento)
+surfaceKeywords:
+  frontend-ui: [ui, tela, screen, formulario, form, componente, frontend, react, css, painel, card, calendario, agenda visual, botao, modal, layout, interface, page, component, button, ecran, formulaire, composant, bouton, boite de dialogue, mise en page]
+  mobile: [mobile, flutter, dart, android, ios, campo, riverpod, drift, apk, keystore, gradle, emulador, sideload, play store, testflight, field app, application terrain, emulateur]
+  data: [banco, database, dados, prisma, schema, migration, sql, ddl, dml, seed, data, data model, base de donnees, modele de donnees, migration de donnees]
+  backend: [rota, endpoint, evento, outbox, prisma, prismaclient, kafka, worker, backend, use case, aggregate, saga, migration, repositorio, dominio, redis, route, event, repository, domain, service, paiement, devis, cloture financiere, partage du paiement, evenement, depot, domaine, service applicatif, notification, projecteur, boite de reception]
+  security: [auth, autenticacao, autorizacao, login, token, integration token, bearer token, jwt, webauthn, senha, sessao, rbac, tenant isolation, passkey, seguranca, step-up, authentication, authorization, tenant, autorisation, authentification, isolement du locataire, locataire actif, administrateur]
+  guardrails: [grafo de memoria, memory graph, memory harness, memoria semantica, token budget, context budget, reasoning, cortex, memory context, bounded context, memoria de agente, graphe de memoire, memoire semantique, contexte memoire, budget de contexte, agent memoire]
+  infra: [infra, infraestrutura, infrastructure, kubernetes, terraform, helm, docker, cluster, deploy, deployment, rede, network, backup, deploiement, reseau, sauvegarde]
+
+# Sinais isolados ambíguos valem pouco e não ativam contrato por si sós.
+surfaceAmbiguousKeywords:
+  security: [token]
+surfaceMinConfidence: 2
+
+# Resolver: parâmetros default (primeira passada PEQUENA — resolução
+# progressiva via --expand quando houver lacuna concreta)
+resolver:
+  maxNodes: 8
+  # maxChars aqui é ADVISORY (estimativa p/ ranking); o orçamento REAL de
+  # entrega é do reader (reader.maxTotalChars) — referências ≠ conteúdo
+  maxChars: 100000
+  maxSourceChars: 12000
+  depth: 2
+  decay: 0.6
+  pruneRatio: 0.15
+  fanOutCap: 8
+  minScore: 4
+  stopwords: [para, por, com, sem, uma, que, como, qualquer, novo, nova, the, and, for, with, from, into]
+  quotas:
+    primary: 3      # decisions/investigations/components/concepts/work/blockers
+    contracts: 2    # contratos obrigatórios da superfície
+    rules: 2        # regras de alta relevância
+    history: 1      # histórico/incidente SÓ quando fortemente relacionado
+
+# Reader (memory:read): BARREIRA técnica de leitura — limites sobre o conteúdo
+# EFETIVAMENTE entregue (não sobre estimativas dos nós)
+reader:
+  maxTotalChars: 20000     # primeira leitura (alvo normal 12k-18k)
+  maxSourceChars: 6000     # por fonte
+  previewChars: 2000       # fonte sem heading = só preview
+  expandExtraChars: 20000  # máximo adicional por expansão dirigida
+  taskBudgetChars: 40000   # total acumulado por tarefa (working set)

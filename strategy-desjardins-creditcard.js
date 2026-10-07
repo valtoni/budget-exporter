@@ -19,12 +19,13 @@
 //   - numeroSequence         (fallback de id)
 //   - dateInscription        "YYYY-MM-DD"
 //   - dateTransaction        "YYYY-MM-DDTHH:mm:ss±tz" (preferido)
-//   - montantTransaction     string. O sinal e SEMPRE confiavel e indica direcao:
-//                              * sectionAutorisee: negativo = outflow, positivo = inflow
-//                              * sectionFacturee:  positivo = outflow (debito ao cartao),
-//                                                  negativo = inflow (pagamento ou retorno)
-//                            Convencao oposta entre as secoes: a autorisee mostra o
-//                            cash flow do usuario, a facturee mostra o balanco do cartao.
+//   - montantTransaction     string. O sinal e SEMPRE confiavel e indica direcao,
+//                            com a MESMA convencao nas duas secoes:
+//                              * positivo = debito ao cartao  (outflow / compra / frais)
+//                              * negativo = credito ao cartao (inflow  / reembolso / pagamento)
+//                            A UI do Desjardins reforca: valores com prefixo "+" sao
+//                            creditos (refunds), valores sem prefixo sao debitos (compras).
+//                            Internamente a API inverte o sinal — refund chega como negativo.
 //   - typeTransaction        "Achat" | "AutreAutorisation" | "Paiement" | "Operation"
 //                            (label informativo apenas; a direcao vem do sinal)
 //   - descriptionSimplifiee  (payee amigavel, preferido)
@@ -33,9 +34,44 @@
 export const apiMatchers = [
     {
         method: 'GET',
-        urlPattern: /\/api\/distribution-libreservice\/dossier-operation\/operations\/v\d+\/transactions\//i
+        // Sem a barra final de proposito: a vista "Par mois" do AccesD pode usar
+        // um sufixo diferente (ex.: .../transactions-par-mois/...). Qualquer
+        // resposta sem transacoes e ignorada pelo extrator, entao o matcher
+        // mais largo nao produz falsos positivos.
+        urlPattern: /\/api\/distribution-libreservice\/dossier-operation\/operations\/v\d+\/transactions/i
     }
 ];
+
+// Campos minimos para tratar um objeto como transacao da API do Desjardins.
+function looksLikeTransaction(tx) {
+    return !!tx
+        && typeof tx === 'object'
+        && !Array.isArray(tx)
+        && 'montantTransaction' in tx
+        && ('dateTransaction' in tx || 'dateInscription' in tx);
+}
+
+// Percorre a resposta inteira em busca de listas de transacoes, em qualquer
+// profundidade. Cobre tanto o formato classico (sectionAutorisee /
+// sectionFacturee no topo) quanto agrupamentos novos (ex.: por mes faturado),
+// sem depender do nome da chave que envolve a lista.
+function collectTransactionLists(node, out = [], depth = 0) {
+    if (depth > 8 || !node || typeof node !== 'object') return out;
+
+    if (Array.isArray(node)) {
+        if (node.some(looksLikeTransaction)) {
+            out.push(node);
+            return out;
+        }
+        for (const item of node) collectTransactionLists(item, out, depth + 1);
+        return out;
+    }
+
+    for (const value of Object.values(node)) {
+        collectTransactionLists(value, out, depth + 1);
+    }
+    return out;
+}
 
 export function extractFromCaptures(captures) {
     const seen = new Set();
@@ -49,16 +85,9 @@ export function extractFromCaptures(captures) {
             continue;
         }
 
-        const sections = [
-            { key: 'autorisee', items: parsed?.sectionAutorisee?.transactionListe },
-            { key: 'facturee',  items: parsed?.sectionFacturee?.transactionListe }
-        ];
-
-        for (const { key, items } of sections) {
-            if (!Array.isArray(items)) continue;
-
+        for (const items of collectTransactionLists(parsed)) {
             for (const tx of items) {
-                if (!tx || typeof tx !== 'object') continue;
+                if (!looksLikeTransaction(tx)) continue;
 
                 const id = tx.identifiant || tx.numeroSequence || '';
                 if (id) {
@@ -72,18 +101,19 @@ export function extractFromCaptures(captures) {
                 const payee = String(tx.descriptionSimplifiee || tx.descriptionCourte || '').trim();
                 if (!payee) continue;
 
-                const raw = String(tx.montantTransaction || '').trim();
+                const raw = String(tx.montantTransaction ?? '').trim();
                 if (!raw) continue;
 
                 const num = parseFloat(raw.replace(',', '.'));
                 if (!Number.isFinite(num)) continue;
 
-                // Sign convention (verified across both sections):
-                //   - autorisee:  negative = outflow (purchase pending), positive = inflow (credit pending)
-                //   - facturee:   positive = outflow (charge billed), negative = inflow (payment received / refund)
-                // typeTransaction ("Achat"/"Paiement"/"Operation") is just a label — the sign of
-                // montantTransaction is the source of truth (a returned Achat comes in as negative).
-                const isInflow = key === 'autorisee' ? num > 0 : num < 0;
+                // Unified sign convention across BOTH sections (autorisee + facturee):
+                //   positive montantTransaction = debit to the card  (outflow / purchase / fee)
+                //   negative montantTransaction = credit to the card (inflow  / refund / payment)
+                // typeTransaction ("Achat"/"Paiement"/"Operation") is just a label — the sign
+                // is the source of truth. Cross-checked against the live Desjardins UI:
+                // displayed "+59,46 $" refund maps to montantTransaction "-59.46" in the API.
+                const isInflow = num < 0;
 
                 // parseDesjardinsAmount expects French-Canadian formatting (comma as
                 // decimal separator). The API ships dot-decimal, so convert
@@ -98,6 +128,7 @@ export function extractFromCaptures(captures) {
 
     return rows;
 }
+
 
 function isoDateFrom(value) {
     const m = String(value || '').match(/^(\d{4}-\d{2}-\d{2})/);

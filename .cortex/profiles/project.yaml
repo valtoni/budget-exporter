@@ -1,0 +1,176 @@
+# Profile `product` deste projeto (handoff §7): ontologia + estágios/gates
+# COMO DADOS. O core não hardcoda nenhum kind, estágio ou gate — tudo aqui.
+# Ontologia derivada de fixtures/golden/ontology.yaml (mesmos kinds, relações,
+# pesos, superfícies e blocos resolver/reader).
+version: 1
+name: product
+
+ontology:
+  version: 1
+
+  kinds:
+    - contract
+    - decision
+    - investigation
+    - domain
+    - component
+    - concept
+    - rule
+    - incident
+    - work
+    - blocker
+    - history
+    - source_section
+
+  # Campos string livres permitidos por kind (anti-cópia de fato canônico).
+  ownedContentKinds: [rule, incident]
+
+  relations:
+    - { name: part_of,        inverse: null,           weight: 0.35 }
+    - { name: depends_on,     inverse: null,           weight: 0.8 }
+    - { name: affects,        inverse: null,           weight: 0.6 }
+    - { name: implements,     inverse: implemented_by, weight: 0.7 }
+    - { name: implemented_by, inverse: implements,     weight: 0.7 }
+    - { name: governed_by,    inverse: null,           weight: 1.0 }
+    - { name: supersedes,     inverse: superseded_by,  weight: 0.5 }
+    - { name: superseded_by,  inverse: supersedes,     weight: 0.5 }
+    - { name: extends,        inverse: extended_by,    weight: 0.4 }
+    - { name: extended_by,    inverse: extends,        weight: 0.4 }
+    - { name: amends,         inverse: amended_by,     weight: 0.4 }
+    - { name: amended_by,     inverse: amends,         weight: 0.4 }
+    - { name: affected_by,    inverse: affects,        weight: 0.6 }
+    - { name: caused_by,      inverse: null,           weight: 0.5 }
+    - { name: resolved_by,    inverse: null,           weight: 0.5 }
+    - { name: learned_from,   inverse: null,           weight: 0.5 }
+    - { name: validated_by,   inverse: null,           weight: 0.4 }
+    - { name: blocked_by,     inverse: null,           weight: 0.6 }
+    - { name: has_history,    inverse: null,           weight: 0.3 }
+    - { name: supports,       inverse: null,           weight: 0.3 }
+    - { name: history_of,     inverse: null,           weight: 0.3 }
+    - { name: related_to,     inverse: related_to,     weight: 0.2 }
+
+  lifecycles: [proposed, accepted, in_progress, implemented, obsolete, superseded]
+
+  surfaces: [backend, frontend-ui, mobile, data, security, guardrails, infra]
+
+  surfaceContracts:
+    backend: [contract.backend]
+    frontend-ui: [contract.frontend-ui]
+    mobile: [contract.frontend-ui]
+    data: [contract.backend]
+    security: [contract.security]
+    guardrails: [contract.guardrails]
+    infra: [contract.backend]
+
+  surfaceKeywords:
+    frontend-ui: [ui, tela, screen, formulario, form, componente, frontend, react, css, painel, card, calendario, agenda visual, botao, modal, layout, interface, page, component, button, ecran, formulaire, composant, bouton, boite de dialogue, mise en page]
+    mobile: [mobile, flutter, dart, android, ios, campo, riverpod, drift, apk, keystore, gradle, emulador, sideload, play store, testflight, field app, application terrain, emulateur]
+    data: [banco, database, dados, prisma, schema, migration, sql, ddl, dml, seed, data, data model, base de donnees, modele de donnees, migration de donnees]
+    backend: [rota, endpoint, evento, outbox, prisma, prismaclient, kafka, worker, backend, use case, aggregate, saga, migration, repositorio, dominio, redis, route, event, repository, domain, service, paiement, devis, cloture financiere, partage du paiement, evenement, depot, domaine, service applicatif, notification, projecteur, boite de reception]
+    security: [auth, autenticacao, autorizacao, login, token, integration token, bearer token, jwt, webauthn, senha, sessao, rbac, tenant isolation, passkey, seguranca, step-up, authentication, authorization, tenant, autorisation, authentification, isolement du locataire, locataire actif, administrateur]
+    guardrails: [grafo de memoria, memory graph, memory harness, memoria semantica, token budget, context budget, reasoning, cortex, memory context, bounded context, memoria de agente, graphe de memoire, memoire semantique, contexte memoire, budget de contexte, agent memoire]
+    infra: [infra, infraestrutura, infrastructure, kubernetes, terraform, helm, docker, cluster, deploy, deployment, rede, network, backup, deploiement, reseau, sauvegarde]
+
+  surfaceAmbiguousKeywords:
+    security: [token]
+  surfaceMinConfidence: 2
+
+  resolver:
+    maxNodes: 8
+    maxChars: 100000
+    maxSourceChars: 12000
+    depth: 2
+    decay: 0.6
+    pruneRatio: 0.15
+    fanOutCap: 8
+    minScore: 4
+    stopwords: [para, por, com, sem, uma, que, como, qualquer, novo, nova, the, and, for, with, from, into]
+    quotas:
+      primary: 3
+      contracts: 2
+      rules: 2
+      history: 1
+
+  reader:
+    maxTotalChars: 20000
+    maxSourceChars: 6000
+    previewChars: 2000
+    expandExtraChars: 20000
+    taskBudgetChars: 40000
+
+# Estágios de gênese e refinamento contínuo (handoff §7 + genesis/creation.md).
+# Gates são descritivos e verificáveis por curadoria (`checkpoint` falha com
+# lacunas objetivas); artefatos declaram o que o estágio deve produzir.
+stages:
+  - name: inception
+    artifacts:
+      - objetivo
+      - problema
+      - publico
+      - stakeholders
+      - fronteiras
+      - restricoes
+      - tbds
+    gates:
+      - "objetivo e escopo explícitos"
+      - "cada TBD tem dono ou condição de resolução"
+
+  - name: discovery
+    artifacts:
+      - capacidades
+      - atores
+      - vocabulario
+      - jornadas
+      - use-cases
+      - regras-de-negocio
+    gates:
+      - "cada use case declara ator, precondição, fluxo principal, alternativas, pós-condição e invariantes"
+      - "vocabulário do domínio tem fonte canônica única (outros documentos linkam, não copiam)"
+
+  - name: architecture
+    artifacts:
+      - boundaries
+      - contratos
+      - riscos
+      - adrs
+    gates:
+      - "cada ADR contém contexto, decisão, alternativas, consequências, status e autoridade"
+      - "contratos de domínio e de API declarados antes da implementação"
+
+  - name: ux
+    artifacts:
+      - fluxos
+      - telas
+      - estados
+      - permissoes
+      - responsividade
+      - acessibilidade
+    gates:
+      - "cada tela possui objetivo, ator, entradas, ações e permissões"
+      - "cada tela cobre estados de loading, vazio, sucesso e erro"
+      - "cada tela declara responsividade, acessibilidade, vínculo com fluxo e critério de aceite/evidência visual"
+
+  - name: delivery
+    artifacts:
+      - mudancas
+      - planos
+      - implementacao
+      - testes
+      - migracao
+      - evidencias
+    gates:
+      - "cada mudança referencia requisito/use case, superfícies afetadas, estratégia de teste e rollout"
+      - "testes de domínio (unit) executados e verdes; lints/formatters configurados"
+      - "tratamento consistente de erros — sem exceção para regra de negócio (Notification/Result)"
+
+  - name: operations
+    artifacts:
+      - observabilidade
+      - runbooks
+      - seguranca
+      - rollout
+      - incidentes
+      - feedback
+    gates:
+      - "cada risco operacional tem observabilidade, ação de recuperação e ownership"
+      - "logs estruturados no backend e feedback de incidente vira proposta de regra, nunca regra automática"

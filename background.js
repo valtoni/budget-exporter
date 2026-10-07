@@ -494,20 +494,42 @@ async function ynabSendTransactions(transactions, ynabAccountIdOverride) {
     const payload = [];
     const skipped = [];
     const sentIds = [];
+    // Espelho do que foi enviado, para o registro do lote. Guardado aqui e não
+    // na sidebar porque só o background sabe qual conta YNAB cada transação
+    // acabou usando (override manual ou primeiro destino mapeado).
+    const sentEntries = [];
+    let destinationAccountId = '';
+    let destinationAccountName = '';
 
     for (const tx of transactions) {
         const destinations = normalizedMap[tx.bankAccountId] || [];
-        const ynabAccountId = ynabAccountIdOverride || destinations[0]?.id;
+        const destination = ynabAccountIdOverride
+            ? (destinations.find((entry) => entry.id === ynabAccountIdOverride) || { id: ynabAccountIdOverride, name: '' })
+            : destinations[0];
+        const ynabAccountId = destination?.id;
         if (!ynabAccountId) {
             skipped.push({ id: tx.id, reason: `Sem mapping YNAB para ${tx.bankAccountId}` });
             continue;
         }
-        payload.push(self.YnabClient.toYnabTransaction(tx, ynabAccountId));
+        const ynabTx = self.YnabClient.toYnabTransaction(tx, ynabAccountId);
+        payload.push(ynabTx);
         sentIds.push(tx.id);
+        sentEntries.push({
+            id: tx.id,
+            importId: ynabTx.import_id || '',
+            dateIso: tx.dateIso || '',
+            payee: tx.payeeFinal || tx.payeeRaw || '',
+            amountMilli: ynabTx.amount,
+            category: tx.categoryFinal || ''
+        });
+        if (!destinationAccountId) {
+            destinationAccountId = ynabAccountId;
+            destinationAccountName = destination.name || '';
+        }
     }
 
     if (payload.length === 0) {
-        return { created: [], duplicates: [], skipped, sentIds: [] };
+        return { created: [], duplicates: [], skipped, sentIds: [], batch: null };
     }
 
     const result = await self.YnabClient.postTransactions(config.token, config.budgetId, payload);
@@ -518,11 +540,35 @@ async function ynabSendTransactions(transactions, ynabAccountIdOverride) {
         await patchYnabConfigSafe({ lastUsedYnabAccount: last });
     }
 
+    const duplicates = result.duplicate_import_ids || [];
+
+    // O lote é gravado só depois do POST retornar: um envio que falhou não gera
+    // número, para que a numeração signifique "chegou no YNAB".
+    let batch = null;
+    try {
+        batch = await self.BudgetStorage.appendSendBatch({
+            sentAt: new Date().toISOString(),
+            bankAccountId: transactions[0]?.bankAccountId || '',
+            accountName: transactions[0]?.accountName || '',
+            ynabAccountId: destinationAccountId,
+            ynabAccountName: destinationAccountName,
+            budgetId: config.budgetId,
+            duplicates: duplicates.length,
+            skipped: skipped.length,
+            transactions: sentEntries
+        });
+    } catch (e) {
+        // O envio já aconteceu — perder o registro não pode desfazê-lo nem
+        // transformar sucesso em erro na tela.
+        console.warn('Falha ao registrar lote de envio:', e);
+    }
+
     return {
         created: result.transactions || [],
-        duplicates: result.duplicate_import_ids || [],
+        duplicates,
         skipped,
-        sentIds
+        sentIds,
+        batch
     };
 }
 
@@ -637,6 +683,12 @@ runtimeAPI.onMessage.addListener((message, _sender, sendResponse) => {
             case 'YNAB_GET_CATEGORIES_CACHE': {
                 const cache = await self.BudgetStorage.getYnabCategoriesCache();
                 sendResponse({ ok: true, cache });
+                return;
+            }
+            case 'YNAB_GET_SEND_BATCHES': {
+                const batches = await self.BudgetStorage.getSendBatches();
+                // Mais recente primeiro — é a ordem em que a lista é lida.
+                sendResponse({ ok: true, batches: batches.slice().reverse() });
                 return;
             }
             case 'YNAB_SEND_TRANSACTIONS': {

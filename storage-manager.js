@@ -72,6 +72,18 @@ function md5(str) {
     return (rhex(a) + rhex(b) + rhex(c) + rhex(d));
 }
 
+// Ids de regra precisam ser únicos: `updatePayeeRule`/`removePayeeRule` e a
+// edição no manage endereçam a regra por id. `Date.now()` sozinho colide sempre
+// que duas regras nascem no mesmo milissegundo (criar várias sugestões em
+// sequência, ou importar um backup) — e aí editar uma alterava as irmãs.
+function nextRuleId(existingRules = []) {
+    const maxId = existingRules.reduce((max, rule) => {
+        const value = Number(rule?.id);
+        return Number.isFinite(value) && value > max ? value : max;
+    }, 0);
+    return Math.max(maxId + 1, Date.now());
+}
+
 function normalizeCategoryInput(item) {
     if (!item) return null;
     if (typeof item === 'string') {
@@ -93,8 +105,14 @@ const BudgetStorage = {
         PAYEE_RULES: 'payee_rules',      // Array de regras de correspondência de payee
         CATEGORIES: 'categories',         // Array de categorias disponíveis
         ACCOUNTS: 'accounts',             // Array de contas disponíveis
-        SUGGESTION_HISTORY: 'suggestion_history'
+        SUGGESTION_HISTORY: 'suggestion_history',
+        YNAB_SEND_BATCHES: 'ynab_send_batches' // Histórico de envios ao YNAB (lotes numerados)
     },
+
+    // Quantos lotes de envio manter. O histórico serve para auditar "o que eu
+    // mandei e quando"; passado esse ponto o valor cai e o storage.local (5MB)
+    // é compartilhado com regras e categorias.
+    MAX_SEND_BATCHES: 200,
 
     /**
      * Inicializa o storage com dados padrão se vazio
@@ -263,14 +281,19 @@ const BudgetStorage = {
         // Normaliza accountId: null/undefined/0 vira 0 (global), outros valores ficam como estão
         let accountId = (rule.accountId == null || rule.accountId === 0) ? 0 : rule.accountId;
         rules.push({
-            id: Date.now(),
+            id: nextRuleId(rules),
             accountId: accountId,
             pattern: rule.pattern,
             replacement: rule.replacement,
             categoryId: categoryId || '',
+            // O nome também é persistido: categorias vindas do YNAB (ou digitadas na
+            // hora) não existem em getCategories(), então categoryId sai vazio e o
+            // nome seria a ÚNICA informação de categoria da regra. Descartá-lo fazia
+            // a categoria escolhida pelo usuário sumir na hora de salvar.
+            category: typeof rule.category === 'string' ? rule.category.trim() : '',
             isRegex: rule.isRegex || false,
             memoTemplate: rule.memoTemplate || '',
-            enabled: true
+            enabled: rule.enabled !== false
         });
         await this.setPayeeRules(rules);
     },
@@ -366,6 +389,73 @@ const BudgetStorage = {
                 });
             });
         }
+    },
+
+    /* ───────── Histórico de envios ao YNAB ─────────
+     * Cada envio bem-sucedido vira um LOTE numerado. A numeração é incremental e
+     * nunca reaproveitada: é a chave de via dupla entre as duas telas — a
+     * transação guarda `ynabBatchSeq`, o lote guarda a lista de transações.
+     */
+    async getSendBatches() {
+        if (isFirefox) {
+            const items = await storageAPI.local.get(this.KEYS.YNAB_SEND_BATCHES);
+            return items[this.KEYS.YNAB_SEND_BATCHES] || [];
+        }
+        return new Promise((resolve) => {
+            storageAPI.local.get(this.KEYS.YNAB_SEND_BATCHES, (items) => {
+                resolve(items[this.KEYS.YNAB_SEND_BATCHES] || []);
+            });
+        });
+    },
+
+    async setSendBatches(batches) {
+        const safe = Array.isArray(batches) ? batches : [];
+        if (isFirefox) {
+            await storageAPI.local.set({ [this.KEYS.YNAB_SEND_BATCHES]: safe });
+            return;
+        }
+        await new Promise((resolve) => {
+            storageAPI.local.set({ [this.KEYS.YNAB_SEND_BATCHES]: safe }, () => resolve());
+        });
+    },
+
+    /**
+     * Grava um novo lote e devolve o registro com o número atribuído.
+     * O seq vem de max(seq)+1 e não do tamanho da lista: a poda do histórico
+     * remove lotes antigos, e reiniciar a contagem faria dois lotes diferentes
+     * responderem pelo mesmo número.
+     */
+    async appendSendBatch(batch) {
+        const batches = await this.getSendBatches();
+        const maxSeq = batches.reduce((max, item) => {
+            const value = Number(item?.seq);
+            return Number.isFinite(value) && value > max ? value : max;
+        }, 0);
+
+        const record = {
+            seq: maxSeq + 1,
+            sentAt: batch?.sentAt || new Date().toISOString(),
+            bankAccountId: batch?.bankAccountId || '',
+            accountName: batch?.accountName || '',
+            ynabAccountId: batch?.ynabAccountId || '',
+            ynabAccountName: batch?.ynabAccountName || '',
+            budgetId: batch?.budgetId || '',
+            count: Array.isArray(batch?.transactions) ? batch.transactions.length : 0,
+            duplicates: Number(batch?.duplicates || 0),
+            skipped: Number(batch?.skipped || 0),
+            transactions: Array.isArray(batch?.transactions) ? batch.transactions : []
+        };
+
+        batches.push(record);
+        // Mantém os mais recentes; a numeração dos remanescentes não muda.
+        const pruned = batches.slice(-this.MAX_SEND_BATCHES);
+        await this.setSendBatches(pruned);
+        return record;
+    },
+
+    async getSendBatchBySeq(seq) {
+        const batches = await this.getSendBatches();
+        return batches.find((batch) => Number(batch?.seq) === Number(seq)) || null;
     },
 
     async getSuggestionHistory() {
@@ -656,6 +746,21 @@ const BudgetStorage = {
         // Validações simples de tipos de campos esperados em regras/contas
         const categoriesNow = await this.getCategories();
         const nameToId = new Map(categoriesNow.map(c => [c.name.toLowerCase(), c.id]));
+        // Um backup pode trazer regras sem id, ou com ids repetidos. Sem isto todas
+        // recebiam o mesmo `Date.now()` e passavam a se comportar como uma só regra
+        // na edição e na exclusão.
+        const takenIds = new Set();
+        let generatedId = Date.now();
+        const claimId = (candidate) => {
+            const value = Number(candidate);
+            if (Number.isFinite(value) && !takenIds.has(value)) {
+                takenIds.add(value);
+                return value;
+            }
+            while (takenIds.has(generatedId)) generatedId += 1;
+            takenIds.add(generatedId);
+            return generatedId;
+        };
         const safeRules = rules.map((r) => {
             const catName = typeof r.category === 'string' ? r.category : '';
             let categoryId = typeof r.categoryId === 'string' ? r.categoryId : '';
@@ -672,7 +777,7 @@ const BudgetStorage = {
                 accountId = Number(r.accountId) || 0;
             }
             return {
-                id: typeof r.id === 'number' ? r.id : Date.now(),
+                id: claimId(r.id),
                 accountId: accountId,
                 pattern: typeof r.pattern === 'string' ? r.pattern : '',
                 replacement: typeof r.replacement === 'string' ? r.replacement : '',

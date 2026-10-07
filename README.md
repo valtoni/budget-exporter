@@ -1,3 +1,26 @@
+---
+memory:
+  aliases:
+  - Budget Exporter
+  - visao geral do projeto
+  - project overview
+  - o que e o budget exporter
+  id: domain.budget-exporter
+  index: true
+  kind: domain
+  relations: []
+  sections:
+  - heading: Budget Exporter
+  surfaces:
+  - frontend-ui
+  tags:
+  - overview
+  - webextension
+  - ynab
+  - desjardins
+  - koho
+  - csv
+---
 # Budget Exporter
 
 Budget Exporter is a cross-browser WebExtension (Firefox, Chrome, Edge) focused on turning supported bank statement pages into reviewed, YNAB-ready CSV exports.
@@ -27,7 +50,7 @@ Supported banks today:
 - Koho prepaid card
 
 Documentation:
-- [Português (Brasil)](README.detail.pt-br.md)
+- [Português (Brasil)](docs/records/architecture/README.detail.pt-br.md)
 - [Français (Canada)](README.detail.fr-ca.md)
 - [English (US)](README.detail.en-us.md)
-- [Build notes](README-BUILD.md)
+- [Build notes](docs/records/build/README-BUILD.md)

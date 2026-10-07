@@ -1,0 +1,55 @@
+exclude:
+- .git/**
+- node_modules/**
+- dist/**
+- icons/**
+- '*.bundle.js'
+- '*.bundle.css'
+- '*.woff2'
+- package-lock.json
+index:
+  fileName: cortex.ctxdb
+  format: database
+profile: product
+projectId: budget-exporter
+schemaVersion: 1
+sources:
+- '**/*.md'
+- '*.js'
+- src/**/*.js
+- scripts/*.mjs
+- build.config.mjs
+- '*.html'
+- manifest.json
+- manifest.chrome.json
+- package.json
+workspace:
+  observe:
+    - ".cortex/architecture.yaml"
+    - "*.js"
+    - "src/**/*.js"
+    - "scripts/*.mjs"
+    - "build.config.mjs"
+  exclude:
+    - ".git/**"
+    - "node_modules/**"
+    - "*.bundle.js"
+  consistency: refresh
+  vectorsProvider: builtin:lexical
+  semantic:
+    enabled: false
+    mode: explicit
+    storage:
+      models: target/cortex/models
+      cache: target/cortex/cache
+      tmp: target/tmp
+  languages:
+    autoDiscover: true
+    requireCoverage: true
+    catalog: .cortex/language-catalog.json
+    fileOnly:
+      extensions: [md, json, jsonl, yaml, yml, toml, xml, properties, html, css, scss, txt, csv, lock, env, example, conf, config, ini, plist, storyboard, pbxproj, xcscheme, xcsettings, xcworkspacedata, xcconfig, svg]
+      filenames: [.gitignore, .gitkeep, .dockerignore, .npmrc, .nvmrc, LICENSE, NOTICE]
+  architecture:
+    definition: .cortex/architecture.yaml
+    requireClassification: true

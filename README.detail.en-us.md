@@ -95,9 +95,9 @@ Artifacts are written to `dist/` with names like `budget-exporter-v1.3.0-<target
 
 The version lives in **exactly one place**: the `"version"` field in `manifest.json`. Bump it there, then run `npm run build` (or `.\build.ps1`) — the `prebuild` hook (`scripts/sync-version.mjs`) propagates the new value into `manifest.chrome.json` and `package.json`. You can also run `npm run version:sync` standalone.
 
-For build details, see [README-BUILD.md](README-BUILD.md).
+For build details, see [README-BUILD.md](docs/records/build/README-BUILD.md).
 
 ## Note
 
 This file has been refreshed to match the current MV3 + sidebar architecture. If you need the most detailed up-to-date walkthrough, the PT-BR guide is currently the most complete:
-- [README.detail.pt-br.md](README.detail.pt-br.md)
+- [README.detail.pt-br.md](docs/records/architecture/README.detail.pt-br.md)

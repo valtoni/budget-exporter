@@ -26,31 +26,43 @@
                     </button>
                 </wa-dropdown>
 
-                <button type="button" id="ex-cutoff-trigger" class="ex-cutoff-trigger" title="Exportar a partir de">
+                <button type="button" id="ex-cutoff-trigger" class="ex-cutoff-trigger"
+                        title="Marca automaticamente as transações a partir desta data">
+                    <span class="ex-cutoff-prefix">A partir de</span>
                     <span id="ex-cutoff-label">—</span>
                     <svg class="caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
                         <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </button>
+                <button type="button" id="ex-cutoff-clear" class="ex-cutoff-clear"
+                        title="Remover a data de corte e considerar todas as transações"
+                        aria-label="Remover data de corte">×</button>
                 <input type="text" id="ex-cutoff-input" class="ex-cutoff-input" aria-hidden="true" tabindex="-1">
             </div>
         </header>
 
         <nav class="ex-filters" id="ex-filters" role="tablist" aria-label="Filtro de transações">
-            <button class="ex-filter is-active" data-filter="all" type="button" role="tab">
+            <button class="ex-filter is-active" data-filter="all" type="button" role="tab"
+                    aria-selected="true" aria-controls="ex-grid">
                 <span>Todas</span><span class="ex-count" data-count="all">0</span>
             </button>
-            <button class="ex-filter" data-filter="matched" type="button" role="tab">
+            <button class="ex-filter" data-filter="matched" type="button" role="tab"
+                    aria-selected="false" aria-controls="ex-grid">
                 <span>Com regra</span><span class="ex-count" data-count="matched">0</span>
             </button>
-            <button class="ex-filter" data-filter="unmatched" type="button" role="tab">
+            <button class="ex-filter" data-filter="suggested" type="button" role="tab"
+                    aria-selected="false" aria-controls="ex-grid">
+                <span>Sugestão</span><span class="ex-count" data-count="suggested">0</span>
+            </button>
+            <button class="ex-filter" data-filter="unmatched" type="button" role="tab"
+                    aria-selected="false" aria-controls="ex-grid">
                 <span>Sem regra</span><span class="ex-count" data-count="unmatched">0</span>
             </button>
         </nav>
 
         <main class="ex-main">
             <datalist id="category-options"></datalist>
-            <extract-grid id="ex-grid"></extract-grid>
+            <extract-grid id="ex-grid" role="tabpanel" aria-label="Transações"></extract-grid>
             <div id="ex-error" class="ex-error" hidden></div>
         </main>
 
@@ -76,6 +88,7 @@
                     </svg>
                 </button>
                 <wa-dropdown-item id="menu-export">Exportar CSV</wa-dropdown-item>
+                <wa-dropdown-item id="menu-batches">Histórico de envios</wa-dropdown-item>
                 <wa-divider></wa-divider>
                 <wa-dropdown-item id="menu-manage">Abrir gestão completa</wa-dropdown-item>
             </wa-dropdown>
@@ -122,6 +135,28 @@
         </form>
         <wa-button slot="footer" variant="brand" id="rule-submit">Salvar regra</wa-button>
         <wa-button slot="footer" appearance="plain" id="rule-cancel">Cancelar</wa-button>
+    </wa-dialog>
+
+    <!-- Confirmação de envio ao YNAB (ação irreversível) -->
+    <wa-dialog id="confirm-dialog" label="Enviar ao YNAB">
+        <p class="confirm-lead">
+            Vão ser criados <strong id="confirm-count">0</strong> lançamentos no seu orçamento.
+        </p>
+        <dl class="confirm-facts">
+            <dt>Período</dt><dd id="confirm-period">—</dd>
+            <dt>Destino</dt><dd id="confirm-dest">—</dd>
+        </dl>
+        <p class="confirm-warn">O YNAB não desfaz um envio pela extensão.</p>
+        <wa-button slot="footer" variant="brand" id="confirm-submit">Enviar</wa-button>
+        <wa-button slot="footer" appearance="plain" id="confirm-cancel">Cancelar</wa-button>
+    </wa-dialog>
+
+    <!-- Histórico de envios -->
+    <wa-dialog id="batches-dialog" label="Histórico de envios">
+        <div id="batches-body" class="batches-body">
+            <p class="batches-empty">Nenhum envio registrado ainda.</p>
+        </div>
+        <wa-button slot="footer" appearance="plain" id="batches-close">Fechar</wa-button>
     </wa-dialog>
 
     <!-- Toast -->

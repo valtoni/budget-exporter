@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "stage": "done",
+  "corpusMin": 5,
+  "inventory": [
+    {
+      "path": "README-BUILD.md",
+      "hash": "721ad0aee81f73cdd997b5b1c9b6da8902718d98",
+      "size": 5664,
+      "headings": [
+        "Build Script - Budget Exporter",
+        "Uso",
+        "Estrategia de manifest",
+        "Versionamento (canonico)",
+        "O que o script faz",
+        "Nomes dos arquivos gerados",
+        "Arquivos incluidos",
+        "Arquivos excluidos"
+      ],
+      "class": "doc",
+      "disposition": "record",
+      "bundle": "build"
+    },
+    {
+      "path": "README.detail.en-us.md",
+      "hash": "35851144ffbee3a4d64c7b5e6ba7b00e757f966a",
+      "size": 4258,
+      "headings": [
+        "Budget Exporter",
+        "Current Architecture",
+        "Install",
+        "Main Components",
+        "Supported Accounts",
+        "Suggestion Model",
+        "Build",
+        "Note"
+      ],
+      "class": "doc",
+      "disposition": "keep-legacy",
+      "note": "Traducao EN do guia de arquitetura, mantida para usuarios finais. A autoridade e o record extraido de README.detail.pt-br.md; esta copia pode ficar defasada."
+    },
+    {
+      "path": "README.detail.fr-ca.md",
+      "hash": "25c5fd4721fd8dbb9f35c03aa1bd78e10d95bd27",
+      "size": 4878,
+      "headings": [
+        "Budget Exporter",
+        "Architecture actuelle",
+        "Installation",
+        "Composants principaux",
+        "Comptes pris en charge",
+        "Modele de suggestion",
+        "Build",
+        "Note"
+      ],
+      "class": "doc",
+      "disposition": "keep-legacy",
+      "note": "Traducao FR-CA do guia de arquitetura, mantida para usuarios finais. A autoridade e o record extraido de README.detail.pt-br.md; esta copia pode ficar defasada."
+    },
+    {
+      "path": "README.detail.pt-br.md",
+      "hash": "ed4b7d92cd7f23ae6fbe05f5fa1ccdd97d0c3901",
+      "size": 8752,
+      "headings": [
+        "Budget Exporter",
+        "Visao Geral",
+        "Principais Funcionalidades",
+        "Arquitetura Atual",
+        "Fluxo de Revisao",
+        "Como Usar",
+        "Bancos Suportados",
+        "Desenvolvimento"
+      ],
+      "class": "doc",
+      "disposition": "record",
+      "bundle": "architecture"
+    },
+    {
+      "path": "README.md",
+      "hash": "cf6c1352e2afb5ee07c9b6187dc3b82e63b2003d",
+      "size": 1566,
+      "headings": [
+        "Budget Exporter"
+      ],
+      "class": "doc",
+      "disposition": "annotate"
+    }
+  ]
+}

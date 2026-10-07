@@ -134,6 +134,33 @@ export class ExtractRow extends LitElement {
         this.emit('tx-create-rule');
     }
 
+    onOpenBatch(event) {
+        event.stopPropagation();
+        this.emit('tx-open-batch', { seq: this.tx?.ynabBatchSeq });
+    }
+
+    // "06/09 14:32" — a data do envio, não a da transação.
+    formatSentAt() {
+        const parsed = new Date(this.tx?.ynabSentAt);
+        if (Number.isNaN(parsed.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${pad(parsed.getDate())}/${pad(parsed.getMonth() + 1)} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+    }
+
+    renderSentTag() {
+        const tx = this.tx;
+        if (!tx?.ynabSentAt) return nothing;
+        const when = this.formatSentAt();
+        const seq = tx.ynabBatchSeq;
+        const label = seq != null ? `Envio #${seq} · ${when}` : `Enviado · ${when}`;
+        // Clicável quando há lote: leva ao registro daquele envio.
+        return seq != null
+            ? html`<button type="button" class="tx-sent-tag is-link"
+                           title="Ver o envio #${seq} no histórico"
+                           @click=${this.onOpenBatch}>${label}</button>`
+            : html`<span class="tx-sent-tag">${label}</span>`;
+    }
+
     onToggleSplits() {
         this.emit('tx-toggle-splits');
     }
@@ -154,7 +181,16 @@ export class ExtractRow extends LitElement {
                 </div>
                 <div class="tx-body">
                     <div class="tx-payee" title=${tx.payeeRaw || ''}>${this.payeeDisplay()}</div>
-                    <div class="tx-category">${this.categoryDisplay()}</div>
+                    <div class="tx-sub">
+                        <span class="tx-category">${this.categoryDisplay()}</span>
+                        <!-- Estado em TEXTO: antes ele existia só como cor de barra
+                             lateral e como title no hover. -->
+                        <span class="tx-status-tag">${this.statusLabel(this.tx.matchStatus || 'unmatched')}</span>
+                        ${tx.cutoffExcluded
+                            ? html`<span class="tx-cutoff-tag" title="Anterior à data de corte — não entra no envio">fora do corte</span>`
+                            : nothing}
+                        ${this.renderSentTag()}
+                    </div>
                 </div>
                 <div class=${amountClass}>${this.formatAmount()}</div>
                 <label class="tx-check" @click=${(e) => e.stopPropagation()}>

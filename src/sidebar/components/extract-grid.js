@@ -35,13 +35,21 @@ export class ExtractGrid extends LitElement {
         this.requestUpdate();
     }
 
+    // Linhas fora da data de corte não são selecionáveis (onSelectAll as pula),
+    // então elas não podem contar para o estado do checkbox mestre — senão ele
+    // nunca chegava a "marcado" e voltava para indeterminado logo após o clique.
+    get selectable() {
+        return (this.transactions || []).filter((tx) => !tx.cutoffExcluded);
+    }
+
     get allSelected() {
-        if (!this.transactions.length) return false;
-        return this.transactions.every((tx) => tx.selected !== false);
+        const items = this.selectable;
+        if (!items.length) return false;
+        return items.every((tx) => tx.selected !== false);
     }
 
     get someSelected() {
-        return this.transactions.some((tx) => tx.selected !== false);
+        return this.selectable.some((tx) => tx.selected !== false);
     }
 
     updated() {

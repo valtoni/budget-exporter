@@ -1,0 +1,250 @@
+/* ═══════════════════════════════════════════════════════════════
+   TOKENS — fonte única das duas superfícies (sidebar + manage)
+   ───────────────────────────────────────────────────────────────
+   DIREÇÃO DE DESIGN: "chrome do navegador, não página web".
+
+   As duas telas desta extensão são superfícies do navegador — a
+   sidebar vive dentro da moldura dele, e manage.html é uma página
+   de OPÇÕES DE EXTENSÃO, categoria que tanto o Firefox
+   (about:addons) quanto o Edge desenham com a linguagem do próprio
+   navegador. Nenhuma das duas deve ter identidade visual própria:
+   ter uma faz a extensão ler como "site embutido".
+
+   Por isso os tokens trocam de LINGUAGEM DE DESIGN conforme o host:
+     data-ua="firefox"   → Proton  (raio 4px, azul #0060df)
+     data-ua="chromium"  → Fluent  (raio 6-8px, azul #0078d4)
+   e seguem prefers-color-scheme, porque a UI do navegador escurece
+   com o tema do sistema.
+
+   Este arquivo existia duplicado em sidebar.styles.css e
+   manage.styles.css, com valores que já haviam divergido. Dois
+   :root separados divergem de novo sozinhos — daí a extração.
+
+   O atributo data-ua e as classes .wa-light/.wa-dark são escritos
+   por src/common/host-theme.js, importado pelos dois entrypoints.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+    /* light dark: entrega scrollbars, campos e controles nativos já no
+       tema certo, sem precisar estilizar cada um. */
+    color-scheme: light dark;
+
+    /* NENHUMA webfont. A UI do navegador usa a fonte de interface do
+       sistema; qualquer outra coisa marca a tela como conteúdo. */
+    --font-sans: 'Segoe UI Variable Text', 'Segoe UI', -apple-system,
+                 BlinkMacSystemFont, system-ui, 'Cantarell', 'Ubuntu',
+                 'Helvetica Neue', sans-serif;
+    --font-mono: ui-monospace, 'Cascadia Mono', 'Consolas',
+                 'SF Mono', 'Liberation Mono', monospace;
+
+    /* ── Firefox Proton, claro (default) ── */
+    --bg: #f9f9fb;
+    --bg-elevated: #ffffff;
+    --surface-2: #f0f0f4;
+    --line: #e0e0e6;
+    --line-strong: #cfcfd8;
+
+    --ink: #15141a;
+    --ink-2: #3d3d43;
+    --muted: #5b5b66;
+    --muted-2: #8f8f9d;
+
+    /* Azul do navegador, não da marca do app: é a cor que o host usa em
+       seleção, foco e ação primária. */
+    --accent: #0060df;
+    --accent-soft: #e0eaff;
+    --accent-deep: #0250bb;
+    --on-accent: #ffffff;
+
+    --positive: #017a4a;
+    --positive-soft: #e3f5eb;
+    --positive-deep: #00603a;
+    --on-positive: #ffffff;
+
+    /* Âmbar do Firefox é #a47f00, mas como TEXTO pequeno sobre o chip claro
+       ele dá 3.39:1 — reprova em AA. Escurecido até 5.61:1. */
+    --warn: #7a5d00;
+    --warn-soft: #fff4c9;
+    --danger: #c50042;
+    --danger-soft: #ffe8ee;
+
+    --row-selected: #f0f6ff;
+    --sent-tint: rgba(1, 122, 74, 0.06);
+
+    /* Realces de superfície do Proton: overlays neutros por cima do fundo,
+       do jeito que a barra de ferramentas do Firefox faz — não cores fixas.
+       Funcionam igual no claro e no escuro. */
+    --hover: rgba(21, 20, 26, 0.07);
+    --active: rgba(21, 20, 26, 0.14);
+
+    --r-sm: 4px;
+    --r-md: 4px;
+    --r-lg: 8px;
+
+    /* Foco: anel do Proton — 2px sólidos, deslocado 1px. */
+    --focus-ring: 0 0 0 1px var(--bg-elevated), 0 0 0 3px var(--accent);
+
+    /* ── Rail de navegação do manage.html ──
+       Derivado dos tokens do host, não mais uma paleta roxa própria. Uma
+       coluna escura fixa dentro de uma página de opções clara é o traço
+       mais "app web" que a tela tinha — nem o about:preferences do Firefox
+       nem as configurações do Edge fazem isso. */
+    --rail-width: 260px;
+    --rail-bg: var(--bg);
+    --rail-bg-hover: var(--hover);
+    --rail-bg-active: var(--accent-soft);
+    --rail-text: var(--ink);
+    --rail-text-muted: var(--muted);
+    /* --muted-2 é para elemento decorativo (carets, separadores) e dá 2.99:1
+       sobre o fundo do rail. Aqui o token pinta o CONTADOR de regras e os
+       títulos de seção — texto que a pessoa lê — então usa --muted. */
+    --rail-text-dim: var(--muted);
+    --rail-text-on-active: var(--accent-deep);
+    --rail-divider: var(--line);
+    --rail-chip-bg: var(--hover);
+    --rail-chip-bg-strong: var(--active);
+
+    /* Ponte para os tokens do Web Awesome. Como apontam para as variáveis
+       acima por indireção, seguem o tema sozinhos. */
+    --wa-color-brand-fill-loud: var(--accent);
+    --wa-color-brand-on-loud: var(--on-accent);
+    --wa-color-brand-border-loud: var(--accent);
+    --wa-color-surface-default: var(--bg-elevated);
+    --wa-color-surface-raised: var(--bg-elevated);
+    --wa-color-text-normal: var(--ink);
+    --wa-color-text-quiet: var(--muted);
+    --wa-border-radius-m: var(--r-md);
+}
+
+/* ── Chrome / Edge: Fluent. Mais arredondado, cinza mais neutro,
+      azul do Windows. ── */
+:root[data-ua="chromium"] {
+    --bg: #f3f3f3;
+    --bg-elevated: #ffffff;
+    --surface-2: #f5f5f5;
+    --line: #e5e5e5;
+    --line-strong: #d6d6d6;
+
+    --ink: #1b1b1b;
+    --ink-2: #383838;
+    --muted: #616161;
+    --muted-2: #8d8d8d;
+
+    --accent: #0078d4;
+    --accent-soft: #eff6fc;
+    --accent-deep: #005a9e;
+
+    --row-selected: #f0f7fd;
+
+    --hover: rgba(0, 0, 0, 0.037);
+    --active: rgba(0, 0, 0, 0.075);
+
+    /* Fluent arredonda mais que o Proton — é o tell visual mais imediato
+       entre os dois sistemas. */
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        /* Proton escuro: os mesmos cinzas-arroxeados do chrome do Firefox. */
+        --bg: #2b2a33;
+        --bg-elevated: #42414d;
+        --surface-2: #52525e;
+        --line: #52525e;
+        --line-strong: #5b5b66;
+
+        --ink: #fbfbfe;
+        --ink-2: #e0e0e6;
+        --muted: #bfbfc9;
+        --muted-2: #8f8f9d;
+
+        /* No escuro o Firefox inverte o azul para ciano claro — e aí o
+           texto POR CIMA do acento precisa ser escuro, não branco. */
+        --accent: #00ddff;
+        --accent-soft: #003844;
+        --accent-deep: #80ebff;
+        --on-accent: #15141a;
+
+        --positive: #54ffbd;
+        --positive-soft: #003a26;
+        --positive-deep: #b3ffdf;
+        /* Menta clara no escuro: texto por cima precisa ser escuro. */
+        --on-positive: #002d1c;
+
+        --warn: #ffd567;
+        --warn-soft: #4a3d00;
+        --danger: #ff9aa2;
+        --danger-soft: #4a0f1e;
+
+        --row-selected: #1c3a4a;
+        --sent-tint: rgba(84, 255, 189, 0.07);
+
+        --hover: rgba(251, 251, 254, 0.1);
+        --active: rgba(251, 251, 254, 0.16);
+    }
+
+    :root[data-ua="chromium"] {
+        --bg: #272727;
+        --bg-elevated: #2d2d2d;
+        --surface-2: #383838;
+        --line: #3d3d3d;
+        --line-strong: #4a4a4a;
+
+        --ink: #ffffff;
+        --ink-2: #e4e4e4;
+        --muted: #a8a8a8;
+        --muted-2: #7a7a7a;
+
+        --accent: #60cdff;
+        --accent-soft: #16344a;
+        --accent-deep: #a8e3ff;
+        --on-accent: #14344a;
+
+        --row-selected: #1d3547;
+
+        --hover: rgba(255, 255, 255, 0.06);
+        --active: rgba(255, 255, 255, 0.1);
+    }
+}
+
+/* ───────── Base compartilhada ───────── */
+
+* { box-sizing: border-box; }
+
+/* Restaura o atributo hidden nativo contra regras de display de classe */
+[hidden] { display: none !important; }
+
+button { font: inherit; cursor: pointer; }
+input, select, textarea { font: inherit; color: inherit; }
+
+/* Seleção de texto na cor do host, como em qualquer superfície do navegador. */
+::selection {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+/* Barra de rolagem fina, no tema — a barra larga padrão é outro tell de
+   "isto é uma página". */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Um único anel de foco para as duas telas, no formato do host.
+   Sem isto cada controle inventava o seu (outline, box-shadow, nada). */
+:where(button, input, select, textarea, summary, a, [tabindex]):focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: var(--r-sm);
+}
+
+/* Quem pediu menos movimento recebe menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

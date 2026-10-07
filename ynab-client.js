@@ -87,7 +87,15 @@ function toYnabTransaction(tx, ynabAccountId) {
     // +5580 milliunits (inflow in YNAB), the opposite of intent.
     const absMain = Math.abs(parseFloat(String(tx.outflow || tx.inflow || '').replace(',', '.'))) || 0;
     const mainMilli = Math.round(absMain * 1000) * direction;
-    const importBase = `YNAB:${Math.abs(mainMilli)}:${tx.dateIso || ''}:${tx.rawIndex ?? ''}`;
+    // import_id is YNAB's dedup key, so it MUST be stable for the same transaction
+    // across captures. tx.id is the content hash built by makeStableTxId
+    // (accountId|date|payee|amount + duplicate counter) — exactly that guarantee.
+    // rawIndex (the row's position in the capture) is NOT: a single new posting at
+    // the top of the statement shifts every index, changing every import_id and
+    // making YNAB re-create transactions it already had.
+    const importBase = tx.id
+        ? `YNAB:${tx.id}`
+        : `YNAB:${Math.abs(mainMilli)}:${tx.dateIso || ''}:${tx.rawIndex ?? ''}`;
     const importId = importBase.slice(0, 36);
     const payeeName = (tx.payeeFinal || tx.payeeRaw || '').slice(0, 50);
     const memo = hasSplits ? null : (tx.memoFinal ? String(tx.memoFinal).slice(0, 200) : null);

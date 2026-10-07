@@ -90,6 +90,20 @@ function cacheDom() {
     dom.ruleSubmit = document.getElementById('rule-submit');
     dom.ruleCancel = document.getElementById('rule-cancel');
 
+    dom.cutoffClear = document.getElementById('ex-cutoff-clear');
+    dom.menuBatches = document.getElementById('menu-batches');
+
+    dom.confirmDialog = document.getElementById('confirm-dialog');
+    dom.confirmCount = document.getElementById('confirm-count');
+    dom.confirmPeriod = document.getElementById('confirm-period');
+    dom.confirmDest = document.getElementById('confirm-dest');
+    dom.confirmSubmit = document.getElementById('confirm-submit');
+    dom.confirmCancel = document.getElementById('confirm-cancel');
+
+    dom.batchesDialog = document.getElementById('batches-dialog');
+    dom.batchesBody = document.getElementById('batches-body');
+    dom.batchesClose = document.getElementById('batches-close');
+
     dom.toast = document.getElementById('ex-toast');
     dom.toastMsg = document.getElementById('ex-toast-msg');
 }
@@ -108,10 +122,14 @@ function bindEvents() {
     dom.grid.addEventListener('tx-split-remove', onSplitRemove);
     dom.grid.addEventListener('tx-split-restore', onSplitRestore);
     dom.grid.addEventListener('tx-select-all', onSelectAll);
+    dom.grid.addEventListener('tx-open-batch', (e) => openBatchesDialog(e.detail?.seq ?? null));
 
     dom.refreshBtn.addEventListener('click', onRefreshClick);
     dom.menuExport.addEventListener('click', () => { closeMenu(); exportSelected(); });
+    dom.menuBatches.addEventListener('click', () => { closeMenu(); openBatchesDialog(); });
     dom.menuManage.addEventListener('click', () => { closeMenu(); openManagePage(); });
+    dom.batchesClose.addEventListener('click', () => closeDialog(dom.batchesDialog));
+    dom.cutoffClear.addEventListener('click', clearCutoff);
     dom.primary.addEventListener('click', onPrimaryAction);
     dom.secondary.addEventListener('click', onSecondaryAction);
 
@@ -206,7 +224,18 @@ function setupCutoffPicker() {
 
 function renderCutoffLabel() {
     if (!dom.cutoffLabel) return;
-    dom.cutoffLabel.textContent = state.cutoffDate || 'sem corte';
+    dom.cutoffLabel.textContent = state.cutoffDate || 'todas as datas';
+    // O botão de limpar só faz sentido quando existe corte para limpar.
+    if (dom.cutoffClear) dom.cutoffClear.hidden = !state.cutoffDate;
+}
+
+// Volta ao estado "sem corte". Antes não havia caminho de volta: o corte nascia
+// em "um mês atrás" e o flatpickr não oferece limpar, então uma vez escolhida a
+// data o usuário nunca mais via o extrato inteiro.
+function clearCutoff() {
+    state.cutoffDate = '';
+    if (cutoffPicker) cutoffPicker.clear();
+    applyCutoffAndRender();
 }
 
 /* ───────── Review lifecycle ───────── */
@@ -256,6 +285,7 @@ function applyReview(review) {
                 selected: old.selected,
                 splits: old.splits,
                 ynabSentAt: old.ynabSentAt,
+                ynabBatchSeq: old.ynabBatchSeq,
                 _edited: old._edited,
                 // Preserved only if the user touched the field:
                 payeeFinal: pick('payeeFinal'),
@@ -280,6 +310,11 @@ function applyReview(review) {
     renderFilters();
     renderGrid();
     refreshYnabButtonState();
+    // Uma captura que falhou (API nao capturada, formato mudou, pagina
+    // inacessivel) chega como review vazio + error. Sem isto a grade fica
+    // vazia em silencio e o usuario nao sabe se e filtro ou falha.
+    if (review.error) showError(review.error);
+    else hideError();
 }
 
 function normalizeReviewShape() {
@@ -287,6 +322,7 @@ function normalizeReviewShape() {
     state.review.transactions.forEach((tx) => {
         if (!Array.isArray(tx.splits)) tx.splits = null;
         if (typeof tx.ynabSentAt !== 'string') tx.ynabSentAt = null;
+        if (typeof tx.ynabBatchSeq !== 'number') tx.ynabBatchSeq = null;
     });
 }
 
@@ -314,15 +350,20 @@ function applyCutoffToReview({ deselectExcluded = false, newIds = null } = {}) {
     state.review.transactions = state.review.transactions.map((tx) => {
         const isNew = newIds ? newIds.has(tx.id) : false;
         const shouldEnforce = deselectExcluded || isNew;
+        // A data de corte DEFINE a seleção nos dois sentidos: o que fica antes dela
+        // sai, o que fica a partir dela entra — mesmo que o item já estivesse
+        // marcado ou desmarcado. Antes o corte só desmarcava, então mover a data
+        // para trás não trazia de volta as transações que passaram a caber nela.
+        // Única exceção: o que já foi enviado ao YNAB nunca é remarcado.
         if (!state.cutoffDate) {
             const next = { ...tx, cutoffExcluded: false };
-            if (shouldEnforce && tx.cutoffExcluded) next.selected = true;
+            if (shouldEnforce) next.selected = !tx.ynabSentAt;
             return next;
         }
         const comparable = normalizeComparableDate(tx.dateIso || tx.dateRaw || '');
         const excluded = comparable ? comparable < state.cutoffDate : false;
         const next = { ...tx, cutoffExcluded: excluded };
-        if (shouldEnforce && excluded) next.selected = false;
+        if (shouldEnforce) next.selected = !excluded && !tx.ynabSentAt;
         return next;
     });
 }
@@ -345,18 +386,22 @@ function recalculateSummary() {
 /* ───────── Render: filters + grid + footer ───────── */
 function renderFilters() {
     const summary = state.review?.summary || { total: 0, matched: 0, suggested: 0, unmatched: 0 };
-    // "Sem regra" = qualquer tx que ainda não tem regra aplicada (sugestões +
-    // verdadeiramente novas). A distinção interna fica preservada pro draft do
-    // ⚡ "Criar regra", mas a UI agrupa.
-    const unmatchedTotal = (summary.unmatched || 0) + (summary.suggested || 0);
+    // "Sugestão" ganhou aba própria: é o estado que pede ação do usuário
+    // (virar regra) e antes ficava diluído dentro de "Sem regra", sem contagem
+    // e sem cor distinta — invisível justamente no fluxo que ele existe para servir.
     const counts = {
         all: summary.total || 0,
         matched: summary.matched || 0,
-        unmatched: unmatchedTotal
+        suggested: summary.suggested || 0,
+        unmatched: summary.unmatched || 0
     };
     dom.filters.querySelectorAll('[data-filter]').forEach((btn) => {
         const f = btn.dataset.filter;
-        btn.classList.toggle('is-active', state.filter === f);
+        const active = state.filter === f;
+        btn.classList.toggle('is-active', active);
+        // role="tab" sem aria-selected não diz nada a um leitor de tela: o
+        // estado ativo existia só como classe CSS.
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
         const count = btn.querySelector('[data-count]');
         if (count) count.textContent = String(counts[f] ?? 0);
     });
@@ -369,13 +414,16 @@ function renderSelectedCount() {
     dom.selectedCount.textContent = String(n);
 }
 
-function renderGrid() {
-    const items = (state.review?.transactions || []).filter((tx) => {
+function visibleTransactions() {
+    return (state.review?.transactions || []).filter((tx) => {
         if (state.filter === 'all') return true;
-        if (state.filter === 'matched') return tx.matchStatus === 'matched';
-        // 'unmatched' groups both suggested and truly unmatched.
-        return tx.matchStatus !== 'matched';
+        const status = tx.matchStatus || 'unmatched';
+        return status === state.filter;
     });
+}
+
+function renderGrid() {
+    const items = visibleTransactions();
     dom.grid.transactions = items;
     dom.grid.expandedSplits = new Set(
         items.filter((tx) => Array.isArray(tx.splits) && tx.splits.length > 0).map((tx) => tx.id)
@@ -550,8 +598,12 @@ function onSplitRestore(event) {
 function onSelectAll(event) {
     if (!state.review?.transactions) return;
     const desired = !!event.detail.selected;
+    // Age apenas sobre o que está na tela. O checkbox do cabeçalho reflete o
+    // conjunto FILTRADO, então aplicá-lo ao conjunto inteiro mudava, sem aviso,
+    // linhas que o usuário nem estava vendo.
+    const visibleIds = new Set(visibleTransactions().map((tx) => tx.id));
     state.review.transactions = state.review.transactions.map((tx) =>
-        tx.cutoffExcluded ? tx : { ...tx, selected: desired }
+        (tx.cutoffExcluded || !visibleIds.has(tx.id)) ? tx : { ...tx, selected: desired }
     );
     recalculateSummary();
     renderFilters();
@@ -945,6 +997,12 @@ async function sendToYnab() {
     const validationError = validateForExport(selected);
     if (validationError) { showError(validationError); return; }
 
+    // Enviar cria lançamentos no orçamento real e não tem desfazer — e o botão
+    // primário é o MESMO que exporta CSV quando o YNAB não está configurado.
+    // Sem esta confirmação, memória muscular basta para enviar sem querer.
+    const confirmed = await confirmSend(selected);
+    if (!confirmed) return;
+
     showSyncOverlay();
     const minDelay = new Promise((r) => setTimeout(r, 600));
 
@@ -970,11 +1028,15 @@ async function sendToYnab() {
         return;
     }
 
-    const { created = [], duplicates = [], skipped = [], sentIds = [] } = response.result || {};
-    const now = new Date().toISOString();
+    const { created = [], duplicates = [], skipped = [], sentIds = [], batch = null } = response.result || {};
+    const now = batch?.sentAt || new Date().toISOString();
     const sentSet = new Set(sentIds);
     state.review.transactions.forEach((tx) => {
-        if (sentSet.has(tx.id)) tx.ynabSentAt = now;
+        if (!sentSet.has(tx.id)) return;
+        tx.ynabSentAt = now;
+        // Lado "transação → lote" da via dupla. O outro lado (lote → transações)
+        // fica no registro gravado pelo background.
+        tx.ynabBatchSeq = batch?.seq ?? null;
     });
 
     recalculateSelectionsAfterSend();
@@ -986,16 +1048,178 @@ async function sendToYnab() {
 
     const parts = [`${created.length} criadas`];
     if (duplicates.length) parts.push(`${duplicates.length} duplicadas (ignoradas pelo YNAB)`);
-    if (skipped.length) parts.push(`${skipped.length} puladas (sem mapeamento)`);
-    showToast(`YNAB: ${parts.join(' · ')}`, 'success');
+    showToast(`Envio #${batch?.seq ?? '—'}: ${parts.join(' · ')}`, 'success');
+
+    // Puladas são acionáveis (falta mapear a conta) — não podem sumir com o
+    // toast. Ficam na faixa de aviso até o usuário resolver ou recarregar.
+    if (skipped.length) {
+        showError(
+            `${skipped.length} transação(ões) não foram enviadas por falta de mapeamento da conta. `
+            + 'Abra "Gerenciar → YNAB" e vincule a conta do banco a uma conta do orçamento.'
+        );
+    }
 }
 
+// Resumo antes de um envio irreversível: quantas, qual período, qual destino.
+function confirmSend(selected) {
+    const dates = selected.map((tx) => tx.dateIso || tx.dateRaw || '').filter(Boolean).sort();
+    const destinations = destinationsForCurrentAccount();
+    const destination = destinations.find((d) => d.id === state.ynabAccountId);
+    const period = dates.length
+        ? (dates[0] === dates[dates.length - 1] ? dates[0] : `${dates[0]} a ${dates[dates.length - 1]}`)
+        : 'sem data';
+
+    dom.confirmCount.textContent = String(selected.length);
+    dom.confirmPeriod.textContent = period;
+    dom.confirmDest.textContent = destination?.name || destination?.id || 'conta YNAB padrão';
+
+    openDialog(dom.confirmDialog);
+
+    return new Promise((resolve) => {
+        // `settled` + a escuta do fechamento do diálogo são obrigatórios: sem
+        // eles, fechar no Esc/X deixava a promise pendente com os listeners
+        // ainda ligados, e a confirmação do envio SEGUINTE resolvia também a
+        // chamada abandonada — enviando duas vezes.
+        let settled = false;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            dom.confirmSubmit.removeEventListener('click', onOk);
+            dom.confirmCancel.removeEventListener('click', onCancel);
+            dom.confirmDialog.removeEventListener('wa-hide', onDismiss);
+            dom.confirmDialog.removeEventListener('wa-after-hide', onDismiss);
+            closeDialog(dom.confirmDialog);
+            resolve(value);
+        };
+        const onOk = () => finish(true);
+        const onCancel = () => finish(false);
+        const onDismiss = () => finish(false);
+        dom.confirmSubmit.addEventListener('click', onOk);
+        dom.confirmCancel.addEventListener('click', onCancel);
+        dom.confirmDialog.addEventListener('wa-hide', onDismiss);
+        dom.confirmDialog.addEventListener('wa-after-hide', onDismiss);
+    });
+}
+
+/* ───────── Histórico de envios ─────────
+ * Lado "lote → transações" da via dupla: cada envio numerado abre mostrando
+ * exatamente o que foi mandado, com o import_id que o YNAB usou para deduplicar.
+ */
+async function openBatchesDialog(focusSeq = null) {
+    openDialog(dom.batchesDialog);
+    dom.batchesBody.innerHTML = '<p class="batches-empty">Carregando…</p>';
+
+    let batches = [];
+    try {
+        const response = await runtimeAPI.sendMessage({ type: 'YNAB_GET_SEND_BATCHES' });
+        batches = response?.batches || [];
+    } catch (error) {
+        dom.batchesBody.innerHTML = '<p class="batches-empty">Não foi possível ler o histórico.</p>';
+        return;
+    }
+
+    if (batches.length === 0) {
+        dom.batchesBody.innerHTML = '<p class="batches-empty">Nenhum envio registrado ainda.</p>';
+        return;
+    }
+
+    dom.batchesBody.innerHTML = '';
+    for (const batch of batches) {
+        dom.batchesBody.appendChild(renderBatchEntry(batch, focusSeq));
+    }
+
+    if (focusSeq != null) {
+        const target = dom.batchesBody.querySelector(`[data-seq="${focusSeq}"]`);
+        if (target) target.scrollIntoView({ block: 'center' });
+    }
+}
+
+function renderBatchEntry(batch, focusSeq) {
+    const details = document.createElement('details');
+    details.className = 'batch-entry';
+    details.dataset.seq = String(batch.seq);
+    if (Number(focusSeq) === Number(batch.seq)) {
+        details.open = true;
+        details.classList.add('is-focused');
+    }
+
+    const summary = document.createElement('summary');
+    summary.className = 'batch-summary';
+
+    const seqEl = document.createElement('span');
+    seqEl.className = 'batch-seq';
+    seqEl.textContent = `#${batch.seq}`;
+
+    const metaEl = document.createElement('span');
+    metaEl.className = 'batch-meta';
+    const destination = batch.ynabAccountName || batch.ynabAccountId || 'conta YNAB';
+    metaEl.textContent = `${formatDateTime(batch.sentAt)} · ${batch.count} transação(ões) · ${batch.accountName || batch.bankAccountId} → ${destination}`;
+
+    summary.append(seqEl, metaEl);
+    details.appendChild(summary);
+
+    if (batch.duplicates || batch.skipped) {
+        const notes = document.createElement('p');
+        notes.className = 'batch-notes';
+        const parts = [];
+        if (batch.duplicates) parts.push(`${batch.duplicates} duplicada(s) ignorada(s) pelo YNAB`);
+        if (batch.skipped) parts.push(`${batch.skipped} pulada(s) por falta de mapeamento`);
+        notes.textContent = parts.join(' · ');
+        details.appendChild(notes);
+    }
+
+    const list = document.createElement('ul');
+    list.className = 'batch-tx-list';
+    for (const entry of batch.transactions || []) {
+        const item = document.createElement('li');
+        item.className = 'batch-tx';
+
+        const date = document.createElement('span');
+        date.className = 'batch-tx-date';
+        date.textContent = entry.dateIso || '—';
+
+        const payee = document.createElement('span');
+        payee.className = 'batch-tx-payee';
+        payee.textContent = entry.payee || 'Sem descrição';
+        payee.title = entry.importId ? `import_id: ${entry.importId}` : '';
+
+        const amount = document.createElement('span');
+        const milli = Number(entry.amountMilli || 0);
+        amount.className = `batch-tx-amount ${milli < 0 ? 'is-out' : 'is-in'}`;
+        amount.textContent = `${milli < 0 ? '−' : '+'}${(Math.abs(milli) / 1000).toFixed(2)}`;
+
+        const ident = document.createElement('span');
+        ident.className = 'batch-tx-id';
+        ident.textContent = entry.importId || entry.id || '';
+
+        item.append(date, payee, amount, ident);
+        list.appendChild(item);
+    }
+    details.appendChild(list);
+
+    return details;
+}
+
+function formatDateTime(iso) {
+    const parsed = new Date(iso);
+    if (Number.isNaN(parsed.getTime())) return String(iso || '—');
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(parsed.getDate())}/${pad(parsed.getMonth() + 1)}/${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
+function destinationsForCurrentAccount() {
+    const cfg = state.ynabConfig;
+    const bankAccountId = state.review?.account?.accountId;
+    return bankAccountId && cfg?.accountMap ? (cfg.accountMap[bankAccountId] || []) : [];
+}
+
+// After a send, the only thing that changes is that what was just sent should no
+// longer be selected. Everything else keeps the selection the user made — items
+// skipped for missing mapping, and items they had deliberately left unchecked.
 function recalculateSelectionsAfterSend() {
     if (!state.review?.transactions) return;
-    const today = new Date().toISOString().slice(0, 10);
     state.review.transactions.forEach((tx) => {
-        if (tx.ynabSentAt) { tx.selected = false; return; }
-        tx.selected = (tx.dateIso || '') >= today;
+        if (tx.ynabSentAt) tx.selected = false;
     });
 }
 

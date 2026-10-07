@@ -1,0 +1,38 @@
+cases:
+- forbidden: []
+  surfaces:
+  - infra
+  task: 'Preparar o deploy da extensao: gerar o build, bumpar a versao e publicar o pacote xpi na infraestrutura de distribuicao'
+  top3:
+  - concept.build-e-versionamento
+- forbidden: []
+  surfaces:
+  - infra
+  task: Quais arquivos entram no pacote final e como funciona o deployment do build da extensao antes do deploy nas lojas?
+  top3:
+  - concept.build-e-versionamento
+- forbidden: []
+  surfaces:
+  - frontend-ui
+  task: 'Adicionar suporte a um novo banco: qual componente da interface exibe as transacoes extraidas na tela de revisao?'
+  top3:
+  - component.budget-exporter-extension
+- forbidden: []
+  surfaces:
+  - data
+  task: Onde ficam os dados das regras de payee e qual o schema do banco local que persiste categorias e contas?
+  top3:
+  - component.budget-exporter-extension
+- forbidden: []
+  surfaces:
+  - frontend-ui
+  task: Qual criterio faz a interface exibir uma sugestao de regra na tela da sidebar de revisao?
+  top3:
+  - component.budget-exporter-extension
+- forbidden: []
+  surfaces:
+  - frontend-ui
+  task: 'Visao geral do Budget Exporter: qual interface o usuario abre e em qual tela ele revisa as transacoes?'
+  top3:
+  - domain.budget-exporter
+version: 1

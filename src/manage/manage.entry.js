@@ -1,5 +1,9 @@
-// Source Sans 3 Variable (YNAB's declared font, SIL OFL 1.1, bundled locally).
-import '../common/fonts.css';
+// Host (Firefox/Chromium) + tema do sistema no <html>. Primeiro import: os
+// atributos precisam existir antes de o CSS resolver as variáveis.
+import '../common/host-theme.js';
+
+// Tokens, reset e tema — compartilhados com a sidebar.
+import '../common/tokens.css';
 
 // Web Awesome theme + selected components
 import '@awesome.me/webawesome/dist/styles/themes/default.css';

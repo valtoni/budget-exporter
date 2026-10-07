@@ -95,9 +95,9 @@ Les artefacts sont ecrits dans `dist/` avec des noms comme `budget-exporter-v1.3
 
 La version vit dans **un seul endroit** : le champ `"version"` de `manifest.json`. Pour la changer, editez-y puis lancez `npm run build` (ou `.\build.ps1`) — le hook `prebuild` (`scripts/sync-version.mjs`) propage la nouvelle valeur dans `manifest.chrome.json` et `package.json`. Egalement disponible en standalone : `npm run version:sync`.
 
-Pour les details du build, voir [README-BUILD.md](README-BUILD.md).
+Pour les details du build, voir [README-BUILD.md](docs/records/build/README-BUILD.md).
 
 ## Note
 
 Ce fichier a ete rafraichi pour correspondre a l'architecture actuelle MV3 + barre laterale. Pour le guide detaille le plus complet et le plus a jour, la version PT-BR reste la reference principale :
-- [README.detail.pt-br.md](README.detail.pt-br.md)
+- [README.detail.pt-br.md](docs/records/architecture/README.detail.pt-br.md)
